@@ -81,3 +81,33 @@ target_include_directories(test_seat_belt_runtime PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
 add_dependencies(test_seat_belt_runtime run_yaml_to_c)
 add_test(NAME SeatBeltRuntimeTest COMMAND test_seat_belt_runtime)
+
+add_executable(test_event_bus tests/test_event_bus.cpp
+    ${LAYER2_DIR}/event_bus.cpp ${GENERATED_SOURCES})
+target_include_directories(test_event_bus PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_event_bus run_yaml_to_c)
+add_test(NAME EventBusTest COMMAND test_event_bus)
+
+add_executable(test_vehicle_logic tests/test_vehicle_logic.cpp
+    ${LAYER2_DIR}/vehicle_logic.cpp
+    ${LAYER2_DIR}/event_bus.cpp
+    ${GENERATED_SOURCES})
+target_include_directories(test_vehicle_logic PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_vehicle_logic run_yaml_to_c)
+add_test(NAME VehicleLogicTest COMMAND test_vehicle_logic)
+
+add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
+    ${LAYER2_DIR}/indicator_runtime.cpp ${GENERATED_SOURCES})
+target_include_directories(test_indicator_runtime PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_indicator_runtime run_yaml_to_c)
+add_test(NAME IndicatorRuntimeTest COMMAND test_indicator_runtime)
+
+add_executable(test_can_signal_monitor tests/test_can_signal_monitor.cpp
+    ${LAYER2_DIR}/can_signal_monitor.cpp ${GENERATED_SOURCES})
+target_include_directories(test_can_signal_monitor PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${GENERATED_DIR} ${LAYER1_DIR} ${LAYER2_DIR})
+add_dependencies(test_can_signal_monitor run_yaml_to_c)
+add_test(NAME CanSignalMonitorTest COMMAND test_can_signal_monitor)

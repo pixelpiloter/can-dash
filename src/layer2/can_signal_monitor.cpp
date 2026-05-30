@@ -51,8 +51,9 @@ void CanSignalMonitor::onCanFrame(uint32_t can_id, float value) {
         return;
     }
 
-    // 突变检测
-    if (def->max_delta > 0 && state->received) {
+    // 突变检测（仅在前序质量正常/超时时检测：异常质量的上一次值不可信）
+    if (def->max_delta > 0 && state->received &&
+        (state->quality == SIGNAL_GOOD || state->quality == SIGNAL_STALE)) {
         float delta = std::fabs(value - state->prevValue);
         if (delta > def->max_delta) {
             updateQuality(state, SIGNAL_ABNORMAL_DELTA, state->lastUpdateMs);
