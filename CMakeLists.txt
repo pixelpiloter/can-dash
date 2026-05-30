@@ -40,6 +40,10 @@ if(Python3_Interpreter_FOUND)
     add_custom_target(run_yaml_to_c ALL DEPENDS ${GENERATED_DIR}/.generated_stamp)
 endif()
 
+# 复制 QML UI 文件到构建目录
+file(COPY ${UI_DIR}/ DESTINATION ${CMAKE_BINARY_DIR}/qml/)
+file(COPY ${UI_DIR}/images/ DESTINATION ${CMAKE_BINARY_DIR}/qml/images/)
+
 # 主应用
 add_executable(can-dash
     src/main.cpp
