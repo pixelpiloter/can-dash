@@ -59,6 +59,9 @@ public:
     // 查询状态
     void query(SeatBeltQueryResult& out) const;
 
+    // 获取内部状态（供 Layer 3 使用）
+    const SeatBeltRuntimeState& states() const { return m_state; }
+
     const char* name() const { return "SeatBeltRuntime"; }
 
 private:

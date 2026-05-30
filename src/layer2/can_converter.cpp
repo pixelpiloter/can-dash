@@ -1,6 +1,6 @@
 // can_converter.cpp
 #include "can_converter.h"
-#include "../../src/generated/can_field_def.h"
+#include "../generated/can_field_def.h"
 
 CanConverter::CanConverter() = default;
 

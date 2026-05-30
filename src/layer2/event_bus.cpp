@@ -23,7 +23,7 @@ int EventBus::subscribeWildcard(const std::string& pattern, EventHandler handler
     return id;
 }
 
-void EventBus::publish(const Event& event) {
+void EventBus::publish(const Event&& event) {
     std::vector<Subscription> subs_copy;
     {
         std::lock_guard<std::mutex> lock(m_mutex);

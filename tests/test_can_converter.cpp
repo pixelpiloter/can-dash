@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
-#include "../src/layer2/can_converter.cpp"
+#include "../src/layer2/can_converter.h"
 #include "../src/layer1/display_data.h"
 
 // 模拟 CAN_FIELD_TABLE（来自 yaml_to_c.py 生成的数据）

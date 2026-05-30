@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
-#include "../src/layer2/seat_belt_runtime.cpp"
+#include "../src/layer2/seat_belt_runtime.h"
 
 int main() {
     printf("=== SeatBeltRuntime 单元测试 ===\n");

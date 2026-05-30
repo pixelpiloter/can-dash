@@ -6,12 +6,13 @@
 #include "../layer2/alarm_runtime.h"
 #include "../layer2/seat_belt_runtime.h"
 
-#include "../../src/generated/can_field_def.h"
-#include "../../src/generated/alarm_rule_def.h"
-#include "../../src/generated/seat_belt_def.h"
+#include "../generated/can_field_def.h"
+#include "../generated/alarm_rule_def.h"
+#include "../generated/seat_belt_def.h"
 
 #include <QTimer>
 #include <QDebug>
+#include <QDateTime>
 
 DashboardBackend::DashboardBackend(QObject* parent)
     : QObject(parent) {}
@@ -97,13 +98,14 @@ void DashboardBackend::updateSeatBeltStates() {
 
     // 更新座位图标状态列表
     QVariantList states;
-    for (int i = 0; i < m_state.seatCount; i++) {
+    const auto& sbStates = m_seatBeltRuntime->states();
+    for (int i = 0; i < sbStates.seatCount; i++) {
         QVariantMap seat;
-        seat["id"] = m_seats[i].positionId;
-        seat["buckled"] = m_seats[i].beltBuckled;
-        seat["occupied"] = m_seats[i].seatOccupied;
-        seat["warning"] = m_seats[i].warning;
-        seat["hint"] = m_seats[i].hint;
+        seat["id"] = sbStates.seats[i].positionId;
+        seat["buckled"] = sbStates.seats[i].beltBuckled;
+        seat["occupied"] = sbStates.seats[i].seatOccupied;
+        seat["warning"] = sbStates.seats[i].warning;
+        seat["hint"] = sbStates.seats[i].hint;
         states.append(seat);
     }
     m_seatIconStates = states;

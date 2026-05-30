@@ -1,6 +1,6 @@
 // alarm_runtime.cpp
 #include "alarm_runtime.h"
-#include "../../src/generated/alarm_rule_def.h"
+#include "../generated/alarm_rule_def.h"
 
 AlarmRuntime::AlarmRuntime(AlarmCallbacks cb)
     : m_cb(cb) {}

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <functional>
 #include "event_bus.h"
+#include "../generated/alarm_rule_def.h"
 
 struct AlarmRuleDef;
 struct AlarmActionDef;

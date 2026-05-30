@@ -1,6 +1,6 @@
 // seat_belt_runtime.cpp
 #include "seat_belt_runtime.h"
-#include "../../src/generated/seat_belt_def.h"
+#include "../generated/seat_belt_def.h"
 #include <cstdio>
 
 void SeatBeltRuntime::init(const SeatPositionDef* positions, int position_count,

@@ -3,7 +3,7 @@
 
 #include <QCoreApplication>
 #include <QQmlApplicationEngine>
-#include <QQuickStyle>
+#include <QtQml/qqmlcontext.h>
 #include <QtGlobal>
 #include <QDebug>
 

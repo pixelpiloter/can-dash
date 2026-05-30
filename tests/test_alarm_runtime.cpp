@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
-#include "../src/layer2/alarm_runtime.cpp"
+#include "../src/layer2/alarm_runtime.h"
 
 // 模拟回调（不调用 Qt）
 static int indicator_call_count = 0;

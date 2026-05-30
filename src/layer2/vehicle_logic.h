@@ -52,6 +52,7 @@ private:
     float             m_targetSpeed;
     float             m_soc;
     float             m_socSmoothed;
+    float             m_lastSoc = 0.0f;
     std::array<float, 10> m_socHistory;
     int               m_socHistoryIndex;
     DriveMode         m_driveMode;

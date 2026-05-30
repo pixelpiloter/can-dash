@@ -43,13 +43,9 @@ void VehicleLogic::onSpeedUpdate(float speed, bool valid) {
     m_speedValid = valid;
     m_lastSpeedUpdateMs = 0; // TODO: 真实时间戳
 
-    EventBus::instance().publish({
-        .key = "vehicle_speed",
-        .value = speed,
-        .prev = m_lastSpeed,
-        .timestamp_ms = m_lastSpeedUpdateMs,
-        .sender = this
-    });
+    Event e{/*key=*/"vehicle_speed", /*value=*/speed, /*prev_value=*/m_lastSpeed,
+            /*timestamp_ms=*/m_lastSpeedUpdateMs, /*source=*/this};
+    EventBus::instance().publish(std::move(e));
 
     m_lastSpeed = speed;
 }
@@ -70,13 +66,9 @@ void VehicleLogic::onSocUpdate(float soc) {
     m_socSmoothed = (count > 0) ? (sum / count) : soc;
     m_soc = soc;
 
-    EventBus::instance().publish({
-        .key = "bat_soc",
-        .value = m_socSmoothed,
-        .prev = m_lastSoc,
-        .timestamp_ms = 0,
-        .sender = this
-    });
+    Event e2{/*key=*/"bat_soc", /*value=*/m_socSmoothed, /*prev_value=*/m_lastSoc,
+            /*timestamp_ms=*/0, /*source=*/this};
+    EventBus::instance().publish(std::move(e2));
 
     m_lastSoc = m_soc;
 }
@@ -94,13 +86,9 @@ void VehicleLogic::onHvStatusUpdate(bool active) {
         m_readyGoActive = false;
     }
 
-    EventBus::instance().publish({
-        .key = "hv_status",
-        .value = active ? 1.0f : 0.0f,
-        .prev = prev ? 1.0f : 0.0f,
-        .timestamp_ms = 0,
-        .sender = this
-    });
+    Event e3{/*key=*/"hv_status", /*value=*/active ? 1.0f : 0.0f, /*prev_value=*/prev ? 1.0f : 0.0f,
+            /*timestamp_ms=*/0, /*source=*/this};
+    EventBus::instance().publish(std::move(e3));
 }
 
 void VehicleLogic::tick(uint64_t now_ms) {
@@ -111,13 +99,9 @@ void VehicleLogic::tick(uint64_t now_ms) {
         uint64_t elapsed = now_ms - m_prechargeStartMs;
         if (elapsed >= m_config.precharge_timeout_ms) {
             m_prechargeState = PRECHARGE_FAILED;
-            EventBus::instance().publish({
-                .key = "precharge_failed",
-                .value = 1.0f,
-                .prev = 0.0f,
-                .timestamp_ms = now_ms,
-                .sender = this
-            });
+            Event e4{/*key=*/"precharge_failed", /*value=*/1.0f, /*prev_value=*/0.0f,
+                    /*timestamp_ms=*/now_ms, /*source=*/this};
+            EventBus::instance().publish(std::move(e4));
         }
     }
 
@@ -128,13 +112,9 @@ void VehicleLogic::tick(uint64_t now_ms) {
         if (now_ms - m_prechargeStartMs > 500) {
             m_prechargeState = PRECHARGE_DONE;
             m_readyGoActive = true;
-            EventBus::instance().publish({
-                .key = "ready_go",
-                .value = 1.0f,
-                .prev = 0.0f,
-                .timestamp_ms = now_ms,
-                .sender = this
-            });
+            Event e5{/*key=*/"ready_go", /*value=*/1.0f, /*prev_value=*/0.0f,
+                    /*timestamp_ms=*/now_ms, /*source=*/this};
+            EventBus::instance().publish(std::move(e5));
         }
     }
 

@@ -307,12 +307,12 @@ def gen_seat_belt_table_c(seat_data: Dict) -> str:
 
     pos_str = ",\n".join(pos_entries)
     config_str = (
-        f"    {{{trigger.get('speed_threshold', 5.0)}f, "
+        f"    {trigger.get('speed_threshold', 5.0)}f, "
         f"{'true' if trigger.get('require_seat_occupied', True) else 'false'}, "
         f"\"{msgs.get('single_zh', '{position}请系安全带')}\", "
         f"\"{msgs.get('multiple_zh', '{positions}请系安全带')}\", "
         f"\"{msgs.get('single_en', '{position} please buckle up')}\", "
-        f"\"{msgs.get('multiple_en', '{positions} please buckle up')}\"}}"
+        f"\"{msgs.get('multiple_en', '{positions} please buckle up')}\""
     )
 
     return f"""// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
@@ -461,28 +461,28 @@ def generate_all():
     # generated/ 下的查找表
     files_generated = [
         ("can_field_def.h", None),
-        ("can_field_table.c", can_data),
+        ("can_field_table.cpp", can_data),
         ("alarm_rule_def.h", None),
-        ("alarm_rule_table.c", alarm_data),
+        ("alarm_rule_table.cpp", alarm_data),
         ("seat_belt_def.h", None),
-        ("seat_belt_table.c", seat_data),
+        ("seat_belt_table.cpp", seat_data),
         ("indicator_def.h", None),
-        ("indicator_table.c", indicator_data),
+        ("indicator_table.cpp", indicator_data),
         ("signal_def.h", None),
-        ("signal_table.c", signal_data),
+        ("signal_table.cpp", signal_data),
     ]
 
     generators = {
         "can_field_def.h": lambda _: gen_can_field_def_h(can_data),
-        "can_field_table.c": lambda d: gen_can_field_table_c(d),
+        "can_field_table.cpp": lambda d: gen_can_field_table_c(d),
         "alarm_rule_def.h": lambda _: gen_alarm_rule_def_h(alarm_data),
-        "alarm_rule_table.c": lambda d: gen_alarm_rule_table_c(d),
+        "alarm_rule_table.cpp": lambda d: gen_alarm_rule_table_c(d),
         "seat_belt_def.h": lambda _: gen_seat_belt_def_h(seat_data),
-        "seat_belt_table.c": lambda d: gen_seat_belt_table_c(d),
+        "seat_belt_table.cpp": lambda d: gen_seat_belt_table_c(d),
         "indicator_def.h": lambda _: gen_indicator_def_h(indicator_data),
-        "indicator_table.c": lambda d: gen_indicator_table_c(d),
+        "indicator_table.cpp": lambda d: gen_indicator_table_c(d),
         "signal_def.h": lambda _: gen_signal_def_h(signal_data),
-        "signal_table.c": lambda d: gen_signal_table_c(d),
+        "signal_table.cpp": lambda d: gen_signal_table_c(d),
     }
 
     for fname, data in files_generated:

@@ -31,7 +31,7 @@ public:
     int subscribeWildcard(const std::string& pattern, EventHandler handler);
 
     // 发布事件
-    void publish(const Event& event);
+    void publish(const Event&& event);
 
     // 取消订阅
     void unsubscribe(int subscription_id);
