@@ -8,6 +8,7 @@ IndicatorRuntime::IndicatorRuntime(IndicatorCallbacks cb)
 void IndicatorRuntime::init(const IndicatorDef* table, int table_count) {
     m_table = table;
     m_count = table_count;
+    m_states = new IndicatorState[table_count]();
 
     for (int i = 0; i < table_count; i++) {
         m_states[i].def = &table[i];
