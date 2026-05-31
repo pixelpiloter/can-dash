@@ -1,76 +1,77 @@
 // dashboard_backend_qt.cpp
 // Layer 3: Qt 适配层实现
+// 组合所有 Layer 2 Runtime，暴露 Q_PROPERTY 给 QML
 
 #include "dashboard_backend_qt.h"
 #include "../layer2/can_converter.h"
 #include "../layer2/alarm_runtime.h"
 #include "../layer2/seat_belt_runtime.h"
 #include "../layer2/indicator_runtime.h"
-#include "../layer2/language_manager.h"
 
 #include "../generated/can_field_def.h"
 #include "../generated/alarm_rule_def.h"
 #include "../generated/seat_belt_def.h"
-#include "../generated/indicator_def.h"
+#include "../generated/indicator_def.h" // INDICATOR_TABLE, INDICATOR_TABLE_COUNT
 
 #include <QTimer>
 #include <QDebug>
 #include <QDateTime>
 #include <QLocalSocket>
 
+// ─── 常量 ────────────────────────────────────────────────
+static const char* SOCKET_PATH = "/tmp/can_dash_socket";
+
+// ─── 构造/析构 ────────────────────────────────────────────
 DashboardBackend::DashboardBackend(QObject* parent)
     : QObject(parent) {}
 
-DashboardBackend::~DashboardBackend() = default;
+DashboardBackend::~DashboardBackend() {
+    if (m_socketServer) {
+        m_socketServer->close();
+        delete m_socketServer;
+    }
+    if (m_socketConnection) {
+        m_socketConnection->deleteLater();
+    }
+}
 
+// ─── 初始化 ───────────────────────────────────────────────
 void DashboardBackend::init() {
-    // ─── 初始化 Layer 2 Runtime ───
+    // ─── Layer 2 组件初始化 ───
     m_converter = new CanConverter();
     m_converter->init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
 
     // 报警 Runtime
     AlarmCallbacks alarmCb = {};
-    alarmCb.onIndicatorUpdate = [](const char* widget_id, bool on, bool flash, float flash_hz, void* user_data) {
+    alarmCb.onIndicatorUpdate = [](const char* widget_id, bool on, bool flash,
+                                    float flash_hz, void* user_data) {
         auto* self = static_cast<DashboardBackend*>(user_data);
         self->setIndicator(QString::fromUtf8(widget_id), on, flash, flash_hz);
     };
-    alarmCb.onAlarmTextUpdate = [](const char* text_zh, const char* text_en, void* user_data) {
+    alarmCb.onAlarmTextUpdate = [](const char* text_zh, const char* text_en,
+                                    void* user_data) {
         auto* self = static_cast<DashboardBackend*>(user_data);
         Q_UNUSED(text_en);
         self->m_backendAlarmMessageZh = QString::fromUtf8(text_zh);
+        self->m_backendAlarmActive = true;
         emit self->alarmActiveChanged();
     };
-    alarmCb.onAlarmStateChanged = [](const char* alarm_name, bool active, void* user_data) {
+    alarmCb.onAlarmStateChanged = [](const char* alarm_name, bool active,
+                                      void* user_data) {
         auto* self = static_cast<DashboardBackend*>(user_data);
-        self->m_backendAlarmActive = active;
         if (active) {
-            // 找到当前最高优先级的报警文本
-            AlarmStatus statuses[10];
-            int count = 0;
-            self->m_alarmRuntime->getActiveAlarms(statuses, &count);
-            if (count > 0) {
-                self->m_backendAlarmMessageZh = QString::fromUtf8(statuses[0].text_zh);
-            }
-            // 更新 alarmStates
-            QVariantMap state;
-            state["active"] = true;
-            state["flash"] = statuses[0].flash;
-            state["text_zh"] = QString::fromUtf8(statuses[0].text_zh);
-            state["text_en"] = QString::fromUtf8(statuses[0].text_en);
-            state["color"] = statuses[0].color;
-            self->m_alarmStates[QString::fromUtf8(alarm_name)] = state;
+            self->m_backendAlarmActive = true;
+            self->m_backendAlarmMessageZh = QString::fromUtf8(alarm_name);
         } else {
-            self->m_backendAlarmMessageZh = "";
-            // 清除该报警的状态
-            self->m_alarmStates.remove(QString::fromUtf8(alarm_name));
+            self->m_backendAlarmMessageZh = QString();
+            self->m_backendAlarmActive = false;
         }
         emit self->alarmActiveChanged();
-        emit self->alarmStatesChanged();
     };
     alarmCb.user_data = this;
     m_alarmRuntime = new AlarmRuntime(alarmCb);
     m_alarmRuntime->init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
-                         ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
+                          ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
 
     // 安全带 Runtime
     m_seatBeltRuntime = new SeatBeltRuntime();
@@ -79,13 +80,14 @@ void DashboardBackend::init() {
 
     // 指示灯 Runtime
     IndicatorCallbacks indicatorCb = {};
-    indicatorCb.onStateChange = [](const char* id, bool on, bool flash, float hz, void* user_data) {
+    indicatorCb.onStateChange = [](const char* id, bool on, bool flash,
+                                    float hz, void* user_data) {
         auto* self = static_cast<DashboardBackend*>(user_data);
         QString key = QString::fromUtf8(id);
         QVariantMap state;
         state["on"] = on;
         state["flash"] = flash;
-        state["flashHz"] = hz;
+        state["hz"] = hz;
         self->m_indicatorStates[key] = state;
         emit self->indicatorStatesChanged();
     };
@@ -93,9 +95,16 @@ void DashboardBackend::init() {
     m_indicatorRuntime = new IndicatorRuntime(indicatorCb);
     m_indicatorRuntime->init(INDICATOR_TABLE, INDICATOR_TABLE_COUNT);
 
-    // 语言管理器（默认中文）
-    m_langManager = new LanguageManager();
-    m_currentLang = "zh_CN";
+    // ─── Unix Socket 服务器 ───
+    m_socketServer = new QLocalServer(this);
+    QLocalServer::removeServer(SOCKET_PATH);
+    if (!m_socketServer->listen(SOCKET_PATH)) {
+        qWarning() << "[SocketServer] Failed to listen:" << m_socketServer->errorString();
+    } else {
+        qDebug() << "[SocketServer] Listening on" << SOCKET_PATH;
+    }
+    connect(m_socketServer, &QLocalServer::newConnection,
+            this, &DashboardBackend::onNewConnection);
 
     // ─── 定时器（~100ms）───
     m_tickTimer = new QTimer(this);
@@ -103,184 +112,164 @@ void DashboardBackend::init() {
     m_tickTimer->start(100);
 
     qDebug() << "DashboardBackend::init() done";
-
-    // ─── 启动 Unix Socket 服务器 ───
-    startSocketServer();
 }
 
-// ─── 语言切换 ───
-QString DashboardBackend::currentLanguage() const {
-    return m_currentLang;
-}
-
-void DashboardBackend::setLanguage(const QString& lang) {
-    qDebug() << "[i18n] setLanguage called with:" << lang;
-    if (lang == "zh_CN" || lang == "en_US") {
-        m_currentLang = lang;
-        m_langManager->setLanguage(lang == "zh_CN" ? LANG_ZH_CN : LANG_EN_US);
-        emit languageChanged();
-        qDebug() << "[i18n] Language switched to:" << lang << "m_currentLang now:" << m_currentLang;
-    } else {
-        qDebug() << "[i18n] setLanguage: unknown lang:" << lang;
-    }
-}
-
-QString DashboardBackend::currentFont() const {
-    return QString::fromUtf8(m_langManager->currentFontFamily());
-}
-
-QString DashboardBackend::tr(const QString& key) const {
-    return QString::fromUtf8(m_langManager->tr(key.toUtf8().constData()));
-}
-
-// ─── 指示灯控制 ───
-void DashboardBackend::setIndicator(const QString& id, bool on, bool flash, float hz) {
-    m_indicatorRuntime->setIndicator(id.toUtf8().constData(), on, flash, hz);
-
-    // 更新本地缓存供 QML 读取
-    QVariantMap state;
-    state["on"] = on;
-    state["flash"] = flash;
-    state["flashHz"] = hz;
-    m_indicatorStates[id] = state;
-    emit indicatorStatesChanged();
-}
-
-bool DashboardBackend::indicatorOn(const QString& id) const {
-    return m_indicatorRuntime->isOn(id.toUtf8().constData());
-}
-
-void DashboardBackend::onCanFrameReceived(quint32 canId, const QByteArray& data) {
-    DisplayData dd = {};
-    memset(&dd, 0, sizeof(DisplayData));
-    uint32_t updatedMask = m_converter->processFrame(
-        canId,
-        reinterpret_cast<const uint8_t*>(data.constData()),
-        data.size(),
-        dd
-    );
-
-    if (updatedMask == 0) {
-        return;
-    }
-
-    // 更新显示数据：只更新本帧实际携带的字段
-    QVariantMap newData = m_displayData;
-    bool has_bat_volt  = false, has_bat_curr  = false, has_bat_soc  = false;
-    bool has_speed     = false, has_rpm        = false, has_motor_temp = false;
-    for (int i = 0; i < m_converter->fieldCount(); i++) {
-        if ((updatedMask & (1U << i)) == 0) continue;
-        const CanFieldDef* def = &m_converter->fieldTable()[i];
-        if (strcmp(def->display_key, "bat_volt") == 0)       has_bat_volt  = true;
-        if (strcmp(def->display_key, "bat_curr") == 0)       has_bat_curr  = true;
-        if (strcmp(def->display_key, "bat_soc") == 0)        has_bat_soc   = true;
-        if (strcmp(def->display_key, "vehicle_speed") == 0)  has_speed     = true;
-        if (strcmp(def->display_key, "motor_rpm") == 0)       has_rpm       = true;
-        if (strcmp(def->display_key, "motor_temp") == 0)     has_motor_temp = true;
-    }
-    if (has_bat_volt) {
-        newData["bat_volt"] = dd.bat_volt;
-        m_alarmRuntime->onValueChanged("bat_volt", dd.bat_volt);
-    }
-    if (has_bat_curr)   newData["bat_curr"] = dd.bat_curr;
-    if (has_bat_soc) {
-        newData["bat_soc"] = dd.bat_soc;
-        m_alarmRuntime->onValueChanged("bat_soc", dd.bat_soc);
-    }
-    if (has_speed) {
-        newData["vehicle_speed"] = dd.vehicle_speed;
-        m_alarmRuntime->onValueChanged("vehicle_speed", dd.vehicle_speed);
-    }
-    if (has_rpm) {
-        newData["motor_rpm"] = dd.motor_rpm;
-        m_alarmRuntime->onValueChanged("motor_rpm", dd.motor_rpm);
-    }
-    if (has_motor_temp) {
-        newData["motor_temp"] = dd.motor_temp;
-        m_alarmRuntime->onValueChanged("motor_temp", dd.motor_temp);
-    }
-    m_displayData = newData;
-    static int tick_count = 0;
-    if (++tick_count % 20 == 0) {
-        qDebug() << "CAN: speed=" << m_displayData["vehicle_speed"].toFloat()
-                 << " bat_volt=" << m_displayData["bat_volt"].toFloat()
-                 << " soc=" << m_displayData["bat_soc"].toFloat()
-                 << " rpm=" << m_displayData["motor_rpm"].toFloat();
-    }
-    emit displayDataChanged();
-}
-
+// ─── 定时 tick ────────────────────────────────────────────
 void DashboardBackend::onTick() {
     uint64_t nowMs = QDateTime::currentMSecsSinceEpoch();
 
-    // ─── 检查 socket 连接（接受等待中的连接）───
-    if (m_socketServer->hasPendingConnections()) {
+    // 轮询 socket 连接接受
+    while (m_socketServer->hasPendingConnections()) {
+        QLocalSocket* client = m_socketServer->nextPendingConnection();
         if (m_socketConnection) {
-            qDebug() << "[SocketServer] Already have connection, skipping";
-        } else {
-            m_socketConnection = m_socketServer->nextPendingConnection();
-            if (m_socketConnection) {
-                qDebug() << "[SocketServer] Client connected";
-                connect(m_socketConnection, &QLocalSocket::disconnected, this, [this]() {
-                    qDebug() << "[SocketServer] Client disconnected";
-                    m_socketConnection->deleteLater();
-                    m_socketConnection = nullptr;
-                });
-                connect(m_socketConnection, &QLocalSocket::errorOccurred, this, [this] {
-                    qDebug() << "[SocketServer] Socket error:" << m_socketConnection->errorString();
-                });
+            m_socketConnection->disconnectFromServer();
+            m_socketConnection->deleteLater();
+        }
+        m_socketConnection = client;
+        connect(m_socketConnection, &QLocalSocket::readyRead,
+                this, &DashboardBackend::onSocketReadyRead);
+        connect(m_socketConnection, &QLocalSocket::disconnected,
+                this, [this]() {
+            qDebug() << "[SocketServer] Client disconnected";
+            m_socketConnection = nullptr;
+        });
+        qDebug() << "[SocketServer] Client connected";
+    }
+
+    // 轮询 socket 数据
+    if (m_socketConnection && m_socketConnection->isValid()) {
+        while (m_socketConnection->bytesAvailable() > 0) {
+            QByteArray data = m_socketConnection->read(256);
+            if (!data.isEmpty()) {
+                handleCanFrameData(data, 0);
             }
         }
     }
 
-    // ─── 接受等待中的 socket 连接 ───
-    if (!m_socketConnection && m_socketServer->hasPendingConnections()) {
-        m_socketConnection = m_socketServer->nextPendingConnection();
-        if (m_socketConnection) {
-            qDebug() << "[SocketServer] Client connected";
-            connect(m_socketConnection, &QLocalSocket::disconnected, this, [this]() {
-                qDebug() << "[SocketServer] Client disconnected";
-                m_socketConnection->deleteLater();
-                m_socketConnection = nullptr;
-            });
-            connect(m_socketConnection, &QLocalSocket::errorOccurred, this, [this] {
-                qDebug() << "[SocketServer] Socket error:" << m_socketConnection->errorString();
-            });
-        }
-    }
-
-    // ─── 读取所有可用的 CAN 帧 ───
-    if (m_socketConnection && m_socketConnection->bytesAvailable() > 0) {
-        QByteArray allData = m_socketConnection->readAll();
-        int offset = 0;
-        while (offset + 5 <= allData.size()) {
-            quint32 canId;
-            memcpy(&canId, allData.constData() + offset, 4);
-            quint8 dlc = static_cast<quint8>(allData[offset + 4]);
-            int frameSize = 5 + dlc;
-            if (offset + frameSize > allData.size()) break;
-            QByteArray frameData = allData.mid(offset + 5, dlc);
-            offset += frameSize;
-            onCanFrameReceived(canId, frameData);
-        }
-    }
-
-    // 驱动所有 Runtime tick
+    // 驱动 Runtime tick
     m_alarmRuntime->tick(nowMs);
     m_seatBeltRuntime->tick(nowMs);
-    m_indicatorRuntime->tick(nowMs);
 
-    // 更新行驶状态
-    bool moving = m_displayData.value("vehicle_speed", 0.0f).toFloat() > 1.0f;
+    // 更新 isMoving
+    float speed = m_displayData.value("vehicle_speed", 0.0f).toFloat();
+    bool moving = speed > 1.0f;
     if (m_isMoving != moving) {
         m_isMoving = moving;
         emit movingChanged();
     }
 
-    // 更新安全带状态
     updateSeatBeltStates();
 }
 
+// ─── Socket 数据处理 ──────────────────────────────────────
+void DashboardBackend::onNewConnection() {
+    qDebug() << "[SocketServer] New incoming connection";
+}
+
+void DashboardBackend::onSocketReadyRead() {
+    if (!m_socketConnection) return;
+    QByteArray data = m_socketConnection->readAll();
+    if (!data.isEmpty()) {
+        handleCanFrameData(data, 0);
+    }
+}
+
+void DashboardBackend::handleCanFrameData(const QByteArray& data, quint32) {
+    // Unix Socket 帧格式：[can_id(4B LE)][dlc(1B)][data]
+    // 变长帧，dlc=实际字节数
+    const int MIN_FRAME = 5; // 4B ID + 1B DLC
+    m_rxBuffer.append(data);
+
+    while (m_rxBuffer.size() >= MIN_FRAME) {
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(m_rxBuffer.constData());
+        quint32 canId = *reinterpret_cast<const quint32*>(ptr);
+        uint8_t dlc = ptr[4];
+        int frameLen = 5 + dlc;
+
+        if (m_rxBuffer.size() < frameLen) break;
+
+        QByteArray frameData = QByteArray::fromRawData(
+            reinterpret_cast<const char*>(ptr + 5), dlc);
+        m_rxBuffer.remove(0, frameLen);
+
+        onCanFrameReceived(canId, frameData);
+    }
+}
+
+// ─── CAN 帧处理 ───────────────────────────────────────────
+void DashboardBackend::onCanFrameReceived(quint32 canId, const QByteArray& data) {
+    DisplayData dd = {};
+    memset(&dd, 0, sizeof(dd));
+
+    uint32_t updatedMask = m_converter->processFrame(
+        canId,
+        reinterpret_cast<const uint8_t*>(data.constData()),
+        data.size(),
+        dd);
+
+    if (updatedMask == 0) return;
+
+    // 从旧数据继承，只更新当前帧携带的字段
+    QVariantMap newData = m_displayData;
+
+    // 遍历 CAN_FIELD_TABLE，找到当前帧更新的字段
+    for (int i = 0; i < CAN_FIELD_TABLE_COUNT; i++) {
+        const CanFieldDef* def = &CAN_FIELD_TABLE[i];
+        if (def->can_id != canId) continue;
+        int bit = i;
+        if ((updatedMask & (1U << bit)) == 0) continue;
+
+        // 根据 display_key 写入 DisplayData 字段
+        float value = 0.0f;
+        if (strcmp(def->display_key, "bat_volt") == 0) {
+            value = dd.bat_volt;
+            newData["bat_volt"] = value;
+        } else if (strcmp(def->display_key, "bat_curr") == 0) {
+            value = dd.bat_curr;
+            newData["bat_curr"] = value;
+        } else if (strcmp(def->display_key, "bat_soc") == 0) {
+            value = dd.bat_soc;
+            newData["bat_soc"] = value;
+        } else if (strcmp(def->display_key, "vehicle_speed") == 0) {
+            value = dd.vehicle_speed;
+            newData["vehicle_speed"] = value;
+        } else if (strcmp(def->display_key, "brake") == 0) {
+            value = dd.brake;
+            newData["brake"] = value;
+        } else if (strcmp(def->display_key, "motor_rpm") == 0) {
+            value = dd.motor_rpm;
+            newData["motor_rpm"] = value;
+        } else if (strcmp(def->display_key, "motor_temp") == 0) {
+            value = dd.motor_temp;
+            newData["motor_temp"] = value;
+        } else if (strcmp(def->display_key, "driver_occupied") == 0) {
+            value = dd.driver_occupied;
+            newData["driver_occupied"] = value;
+        } else if (strcmp(def->display_key, "passenger_occupied") == 0) {
+            value = dd.passenger_occupied;
+            newData["passenger_occupied"] = value;
+        } else if (strcmp(def->display_key, "driver_buckled") == 0) {
+            value = dd.driver_buckled;
+            newData["driver_buckled"] = value;
+        } else if (strcmp(def->display_key, "passenger_buckled") == 0) {
+            value = dd.passenger_buckled;
+            newData["passenger_buckled"] = value;
+        } else if (strcmp(def->display_key, "rear_buckle") == 0) {
+            value = dd.rear_buckle;
+            newData["rear_buckle"] = value;
+        }
+
+        // 通知报警 Runtime
+        m_alarmRuntime->onValueChanged(def->display_key, value);
+    }
+
+    if (!newData.isEmpty()) {
+        m_displayData = newData;
+        emit displayDataChanged();
+    }
+}
+
+// ─── 安全带状态 ───────────────────────────────────────────
 void DashboardBackend::updateSeatBeltStates() {
     SeatBeltQueryResult result = {};
     m_seatBeltRuntime->query(result);
@@ -310,6 +299,18 @@ void DashboardBackend::updateSeatBeltStates() {
     emit seatIconStatesChanged();
 }
 
+// ─── 指示灯控制 ───────────────────────────────────────────
+void DashboardBackend::setIndicator(const QString& widget_id, bool on,
+                                    bool flash, float hz) {
+    QVariantMap state;
+    state["on"] = on;
+    state["flash"] = flash;
+    state["hz"] = hz;
+    m_indicatorStates[widget_id] = state;
+    emit indicatorStatesChanged();
+}
+
+// ─── QML 接口 ─────────────────────────────────────────────
 QVariant DashboardBackend::get(const QString& key) const {
     return m_displayData.value(key);
 }
@@ -317,15 +318,5 @@ QVariant DashboardBackend::get(const QString& key) const {
 void DashboardBackend::set(const QString& key, const QVariant& value) {
     Q_UNUSED(key);
     Q_UNUSED(value);
-}
-
-void DashboardBackend::startSocketServer() {
-    QLocalServer::removeServer("/tmp/can_dash_socket");
-
-    m_socketServer = new QLocalServer(this);
-    if (!m_socketServer->listen("/tmp/can_dash_socket")) {
-        qWarning() << "Failed to listen on /tmp/can_dash_socket:" << m_socketServer->errorString();
-        return;
-    }
-    qDebug() << "[SocketServer] Listening on /tmp/can_dash_socket";
+    qWarning() << "DashboardBackend::set() called - this should not happen";
 }
