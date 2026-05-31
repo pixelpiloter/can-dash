@@ -72,7 +72,7 @@ ApplicationWindow {
         }
     }
 
-    // ─── 顶部指示灯条 ───
+    // ─── 顶部指示灯条（高度 80，包含语言切换在右侧）───
     Rectangle {
         id: indicatorBar
         anchors.top: parent.top
@@ -80,12 +80,14 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 80
         color: "#CC000000"
+        z: 5
 
+        // 左侧指示灯
         Row {
-            anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 300
             spacing: 14
-
             IndicatorLight { id: leftTurnLight;    width: 55; height: 55; symbol: "turn_left";     on: dashboard.indicatorOn("left_turn_light");      flash: true;  flashHz: 1.5 }
             IndicatorLight { id: rightTurnLight;   width: 55; height: 55; symbol: "turn_right";    on: dashboard.indicatorOn("right_turn_light");     flash: true;  flashHz: 1.5 }
             Rectangle { width: 2; height: 50; color: "#333333" }
@@ -96,6 +98,41 @@ ApplicationWindow {
             IndicatorLight { id: engineLight;      width: 55; height: 55; symbol: "check_engine"; on: dashboard.indicatorOn("check_engine_light"); flash: true;  flashHz: 1 }
             IndicatorLight { id: highVoltLight;    width: 55; height: 55; symbol: "high_volt";    on: dashboard.indicatorOn("high_voltage_light");  flash: false }
             IndicatorLight { id: fogLight;         width: 55; height: 55; symbol: "fog";           on: dashboard.indicatorOn("fog_light");          flash: false }
+        }
+
+        // 右侧语言切换（在 indicatorBar 内，z=10 确保在最上层）
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            anchors.rightMargin: 20
+            spacing: 6
+            z: 10
+            Rectangle {
+                width: 50; height: 34; radius: 6
+                color: dashboard.currentLanguage === "zh_CN" ? "#FF660000" : "#00000000"
+                border.color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#444444"
+                border.width: 1
+                Text {
+                    anchors.centerIn: parent
+                    text: "中文"
+                    color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#888888"
+                    font.pixelSize: 13; font.weight: Font.Bold
+                }
+                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("zh_CN") }
+            }
+            Rectangle {
+                width: 50; height: 34; radius: 6
+                color: dashboard.currentLanguage === "en_US" ? "#FF660000" : "#00000000"
+                border.color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#444444"
+                border.width: 1
+                Text {
+                    anchors.centerIn: parent
+                    text: "EN"
+                    color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#888888"
+                    font.pixelSize: 13; font.weight: Font.Bold
+                }
+                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("en_US") }
+            }
         }
     }
 
@@ -266,44 +303,6 @@ ApplicationWindow {
         }
     }
 
-    // ─── 语言切换（z=20，最顶层）───
-    Row {
-        id: langSwitch
-        z: 20
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 20
-        anchors.topMargin: 90
-        spacing: 6
-
-        Rectangle {
-            width: 50; height: 36; radius: 6
-            color: dashboard.currentLanguage === "zh_CN" ? "#33550000" : "#AA000000"
-            border.color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#333333"
-            border.width: 1
-            Text {
-                anchors.centerIn: parent
-                text: "中文"
-                color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#888888"
-                font.pixelSize: 14; font.weight: Font.Bold
-            }
-            MouseArea { anchors.fill: parent; onClicked: console.log("switch to zh_CN"); dashboard.setLanguage("zh_CN") }
-        }
-        Rectangle {
-            width: 50; height: 36; radius: 6
-            color: dashboard.currentLanguage === "en_US" ? "#33550000" : "#AA000000"
-            border.color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#333333"
-            border.width: 1
-            Text {
-                anchors.centerIn: parent
-                text: "EN"
-                color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#888888"
-                font.pixelSize: 14; font.weight: Font.Bold
-            }
-            MouseArea { anchors.fill: parent; onClicked: console.log("switch to en_US"); dashboard.setLanguage("en_US") }
-        }
-    }
-
     // ─── 底部状态栏 ───
     Rectangle {
         anchors.bottom: parent.bottom
@@ -337,6 +336,6 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        console.log("DashboardMain.qml loaded - 1920x720")
+        console.log("DashboardMain.qml loaded - 1920x720 lang=" + dashboard.currentLanguage)
     }
 }
