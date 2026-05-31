@@ -7,9 +7,7 @@ CanSignalMonitor::CanSignalMonitor(MonitorCallbacks cb)
     : m_cb(cb) {}
 
 CanSignalMonitor::~CanSignalMonitor() {
-    for (int i = 0; i < m_count; i++) {
-        delete[] m_states[i].history;
-    }
+    // history is allocated from static m_historyPool, not heap — no delete needed
     delete[] m_states;
 }
 

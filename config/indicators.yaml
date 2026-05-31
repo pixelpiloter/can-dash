@@ -98,3 +98,35 @@ indicators:
     size: { width: 50, height: 50 }
     position: { x: 660, y: 300 }
     flash_on_fault: false
+
+  - id: "high_voltage_warn_light"
+    type: "light"
+    image_on: "hv_warn_red.png"
+    image_off: "hv_warn_dim.png"
+    size: { width: 50, height: 50 }
+    position: { x: 80, y: 20 }
+    flash_on_fault: true
+
+  - id: "sys_fault_light"
+    type: "light"
+    image_on: "sys_fault_red.png"
+    image_off: "sys_fault_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 20, y: 80 }
+    flash_on_fault: true
+
+  - id: "bat_critical_light"
+    type: "light"
+    image_on: "bat_critical_red.png"
+    image_off: "bat_critical_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 600, y: 260 }
+    flash_on_fault: true
+
+  - id: "tire_pressure_light"
+    type: "light"
+    image_on: "tire_pressure_red.png"
+    image_off: "tire_pressure_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 120, y: 20 }
+    flash_on_fault: true

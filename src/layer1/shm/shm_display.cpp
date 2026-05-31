@@ -71,9 +71,10 @@ void shm_display_set_float(ShmFieldIndex idx, float value) {
     if (!g_ptr || idx >= SHM_FIELD_COUNT) return;
     switch (idx) {
         case SHM_FIELD_BAT_VOLT:      g_ptr->bat_volt = value; break;
-        case SHM_FIELD_BAT_CURR:     g_ptr->bat_curr = value; break;
-        case SHM_FIELD_VEHICLE_SPEED: g_ptr->vehicle_speed = value; break;
-        case SHM_FIELD_MOTOR_RPM:    g_ptr->motor_rpm = value; break;
+        case SHM_FIELD_BAT_CURR:      g_ptr->bat_curr = value; break;
+        case SHM_FIELD_VEHICLE_SPEED:  g_ptr->vehicle_speed = value; break;
+        case SHM_FIELD_MOTOR_RPM:     g_ptr->motor_rpm = value; break;
+        case SHM_FIELD_CHARGE_POWER:  g_ptr->charge_power = value; break;
         default: return;
     }
     shm_display_mark_updated(idx);
@@ -90,6 +91,24 @@ void shm_display_set_uint8(ShmFieldIndex idx, uint8_t value) {
         case SHM_FIELD_DRIVER_BUCKLED:      g_ptr->driver_buckled = value; break;
         case SHM_FIELD_PASSENGER_BUCKLED:   g_ptr->passenger_buckled = value; break;
         case SHM_FIELD_REAR_BUCKLE:         g_ptr->rear_buckle = value; break;
+        // HYBRID uint8 fields
+        case SHM_FIELD_BATTERY_TEMP:        g_ptr->battery_temp = value; break;
+        case SHM_FIELD_ENERGY_MODE:          g_ptr->energy_mode = value; break;
+        case SHM_FIELD_FUEL_LEVEL:           g_ptr->fuel_level = value; break;
+        case SHM_FIELD_CHARGE_STATUS:        g_ptr->charge_status = value; break;
+        case SHM_FIELD_ENGINE_FAULT:         g_ptr->engine_fault = value; break;
+        case SHM_FIELD_GEAR_STATUS:          g_ptr->gear_status = value; break;
+        default: return;
+    }
+    shm_display_mark_updated(idx);
+}
+
+void shm_display_set_uint16(ShmFieldIndex idx, uint16_t value) {
+    if (!g_ptr || idx >= SHM_FIELD_COUNT) return;
+    switch (idx) {
+        case SHM_FIELD_FUEL_RANGE:   g_ptr->fuel_range = value; break;
+        case SHM_FIELD_EV_RANGE:     g_ptr->ev_range = value; break;
+        case SHM_FIELD_ENGINE_RPM:   g_ptr->engine_rpm = value; break;
         default: return;
     }
     shm_display_mark_updated(idx);
@@ -100,6 +119,11 @@ void shm_display_set_indicator(ShmIndicatorId id, int on, int flash, float hz) {
     g_ptr->indicators[id].on = (uint8_t)on;
     g_ptr->indicators[id].flash = (uint8_t)flash;
     g_ptr->indicators[id].hz_x10 = (uint8_t)(hz * 10 + 0.5f);
+}
+
+void shm_display_set_backlight_state(uint8_t state) {
+    if (!g_ptr) return;
+    g_ptr->backlight_state = state;
 }
 
 void shm_display_set_alarm(const char* text_zh) {

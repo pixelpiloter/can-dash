@@ -6,7 +6,7 @@
 **优先级**: Medium
 **来源**:   indicators.yaml (已有) / alarm_rules.yaml (engine_boost_active / engine_fault_alarm)
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: v1.0
 
 ---
 

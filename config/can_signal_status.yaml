@@ -95,3 +95,11 @@ signals:
     validity:
       min: -40
       max: 85
+
+  - name: "tire_pressure"
+    can_id: 0x3A0
+    timeout_ms: 500
+    validity:
+      min: 0.0
+      max: 3.5
+      max_delta: 0.5

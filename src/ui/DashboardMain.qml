@@ -98,6 +98,7 @@ ApplicationWindow {
             IndicatorLight { id: engineLight;      width: 55; height: 55; symbol: "check_engine"; on: dashboard.indicatorOn("check_engine_light"); flash: true;  flashHz: 1 }
             IndicatorLight { id: highVoltLight;    width: 55; height: 55; symbol: "high_volt";    on: dashboard.indicatorOn("high_voltage_light");  flash: false }
             IndicatorLight { id: fogLight;         width: 55; height: 55; symbol: "fog";           on: dashboard.indicatorOn("fog_light");          flash: false }
+            IndicatorLight { id: seatbeltLight;     width: 55; height: 55; symbol: "seatbelt";      on: dashboard.indicatorOn("seatbelt_warning");   flash: true;  flashHz: 2 }
         }
 
         // 右侧语言切换（在 indicatorBar 内，z=10 确保在最上层）
@@ -241,66 +242,16 @@ ApplicationWindow {
             }
         }
 
-        // 安全带状态
-        Rectangle {
-            width: 220; height: 110
-            color: "#1a1a1a"; radius: 8; border.color: "#333333"
-            Row { anchors.centerIn: parent; spacing: 8
-                Repeater {
-                    model: dashboard.seatIconStates.length
-                    Rectangle {
-                        width: 44; height: 75; radius: 4
-                        color: {
-                            var s = dashboard.seatIconStates[index]
-                            if (!s) return "#333333"
-                            if (s.warning) return "#FF2200"
-                            if (s.hint) return "#FFAA00"
-                            if (s.buckled) return "#00AA44"
-                            return "#333333"
-                        }
-                        Column { anchors.centerIn: parent; spacing: 2
-                            Text {
-                                text: {
-                                    var s = dashboard.seatIconStates[index]
-                                    if (!s || !s.occupied) return "—"
-                                    return s.buckled ? "✓" : "!"
-                                }
-                                color: "#FFFFFF"; font.pixelSize: 18; font.weight: Font.Bold
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                            Text {
-                                text: { var s = dashboard.seatIconStates[index]; return s ? (s.id || "") : "" }
-                                color: "#888888"; font.pixelSize: 9
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                        }
-                        SequentialAnimation on opacity {
-                            running: root.visible && dashboard.isMoving && dashboard.seatIconStates[index] && dashboard.seatIconStates[index].warning
-                            loops: Animation.Infinite
-                            NumberAnimation { from: 1.0; to: 0.2; duration: 250 }
-                            NumberAnimation { from: 0.2; to: 1.0; duration: 250 }
-                        }
-                    }
-                }
-            }
+        // 安全带状态（使用独立 SeatBeltZone 组件）
+        SeatBeltZone {
+            width: 220
+            height: 110
         }
     }
 
-    // ─── 报警横幅（z=10，在表盘之上）───
-    Rectangle {
+    // ─── 报警横幅（z=9999，最高层）───
+    AlarmBanner {
         id: alarmBanner
-        z: 10
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 88
-        visible: dashboard.alarmActive
-        width: 620; height: 60
-        color: "#DD000000"; radius: 8
-        border.color: "#FF4400"; border.width: 2
-        Text {
-            anchors.centerIn: parent
-            text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : ""
-            color: "#FF4400"; font.pixelSize: 30; font.weight: Font.Bold
-        }
     }
 
     // ─── 底部状态栏 ───

@@ -84,7 +84,112 @@ void DashboardBackend::onTick() {
         m_backendAlarmMessageZh = alarmMsg;
         changed = true;
     }
+
+    // ─── 填充 alarmList（供 AlarmBanner QML 组件使用）───
+    if (alarmActive && !alarmMsg.isEmpty()) {
+        // 解析 alarm_message_zh，格式："name:text_zh;text_en|..."
+        // 目前 shared memory 只有一条消息，用 "||" 分隔多个报警
+        QStringList alarms = alarmMsg.split("||", Qt::SkipEmptyParts);
+        QVariantList newList;
+        for (const QString& entry : alarms) {
+            QStringList parts = entry.split(":", Qt::SkipEmptyParts);
+            QString name, text;
+            if (parts.size() >= 2) {
+                name = parts[0].trimmed();
+                text = parts[1].trimmed();
+            } else {
+                text = entry.trimmed();
+            }
+            // 根据报警名称确定颜色和字体大小（默认值）
+            QString color = "#FF4400";
+            int fontSize = 28;
+            if (name.contains("soc") || name.contains("电量") || name.contains("fuel") || name.contains("燃油")) {
+                color = "#FFAA00";  // 黄色：中等优先级
+                fontSize = 28;
+            } else if (name.contains("critical") || name.contains("严重") || name.contains("soc_critical")) {
+                color = "#FF0000";  // 红色：紧急
+                fontSize = 32;
+            }
+            QVariantMap alarm;
+            alarm["text_zh"] = text;
+            alarm["text_en"] = text;  // backend 无现成英文，用中文代替
+            alarm["color"] = color;
+            alarm["font_size"] = fontSize;
+            newList.append(alarm);
+        }
+        if (newList != m_alarmList) {
+            m_alarmList = newList;
+            changed = true;
+        }
+    } else {
+        if (!m_alarmList.isEmpty()) {
+            m_alarmList.clear();
+            changed = true;
+        }
+    }
+
     if (changed) emit alarmActiveChanged();
+
+    // ─── 更新安全带状态 ────────────────────────────
+    // 座位顺序: driver=0, passenger=1, rear_left=2, rear_center=3, rear_right=4
+    // rear_buckle bit: bit0=后左, bit1=后中, bit2=后右
+    QVariantList newSeatStates;
+    bool seatBeltWarning = false;
+    QStringList unbuckledPositions;
+
+    auto evalSeat = [&](int idx, bool occupied, bool buckled, const char* posKey) {
+        bool warning = false;
+        if (occupied && !buckled && data.vehicle_speed > 5.0f) {
+            warning = true;
+            seatBeltWarning = true;
+            const char* label = m_langManager->tr(posKey);
+            unbuckledPositions.append(QString::fromUtf8(label));
+        }
+        QVariantMap seat;
+        seat["id"] = QString::fromUtf8(posKey);
+        seat["occupied"] = occupied;
+        seat["buckled"] = buckled;
+        seat["warning"] = warning;
+        newSeatStates.append(seat);
+    };
+
+    evalSeat(0, data.driver_occupied != 0, data.driver_buckled != 0, "seatbelt.driver");
+    evalSeat(1, data.passenger_occupied != 0, data.passenger_buckled != 0, "seatbelt.passenger");
+    evalSeat(2, (data.rear_buckle & 0x01) != 0, (data.rear_buckle & 0x01) != 0, "seatbelt.rear_left");
+    evalSeat(3, (data.rear_buckle & 0x02) != 0, (data.rear_buckle & 0x02) != 0, "seatbelt.rear_center");
+    evalSeat(4, (data.rear_buckle & 0x04) != 0, (data.rear_buckle & 0x04) != 0, "seatbelt.rear_right");
+
+    // 生成 i18n 报警消息
+    QString seatBeltMsg;
+    if (!unbuckledPositions.isEmpty()) {
+        QString positionsStr = unbuckledPositions.join(",");
+        bool isZh = (m_langManager->currentLocale() != nullptr &&
+                      strcmp(m_langManager->currentLocale(), "en_US") == 0);
+        if (unbuckledPositions.size() == 1) {
+            seatBeltMsg = isZh
+                ? QString::fromUtf8("%1请系安全带").arg(positionsStr)
+                : QString::fromUtf8("%1 please buckle up").arg(positionsStr);
+        } else {
+            seatBeltMsg = isZh
+                ? QString::fromUtf8("%1请系安全带").arg(positionsStr)
+                : QString::fromUtf8("%1 please buckle up").arg(positionsStr);
+        }
+    }
+
+    bool seatChanged = false;
+    if (newSeatStates != m_seatIconStates) {
+        m_seatIconStates = newSeatStates;
+        seatChanged = true;
+    }
+    if (seatBeltWarning != m_seatBeltActive) {
+        m_seatBeltActive = seatBeltWarning;
+        seatChanged = true;
+    }
+    if (seatBeltMsg != m_seatBeltMessage) {
+        m_seatBeltMessage = seatBeltMsg;
+        seatChanged = true;
+    }
+    if (seatChanged) emit seatBeltWarningChanged();
 
     // ─── 更新指示灯状态 ───────────────────────────
     QVariantMap indStates;

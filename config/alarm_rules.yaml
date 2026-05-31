@@ -256,3 +256,19 @@ alarm_rules:
         text_en: "CRITICAL: BATTERY TEMP"
         font_size: 32
         color: "#FF0000"
+
+  - name: "tire_pressure_low"
+    display_key: "tire_pressure"
+    condition: "value < 1.8"
+    priority: "high"
+    duration_ms: 200
+    actions:
+      - type: "indicator_light"
+        widget: "tire_pressure_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "胎压低，请检查轮胎！"
+        text_en: "LOW TIRE PRESSURE"
+        font_size: 32
+        color: "#FF0000"

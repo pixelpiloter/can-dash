@@ -26,22 +26,42 @@ static AlarmRuntime* g_alarmRuntime = nullptr;
 static IndicatorRuntime* g_indicatorRuntime = nullptr;
 
 // DisplayData字段 → ShmFieldIndex 的映射表（按CAN_FIELD_TABLE顺序）
-// DisplayData字段顺序: bat_volt, bat_curr, bat_soc, vehicle_speed, brake,
+// DisplayData字段顺序: bat_volt, bat_curr, bat_soc, battery_temp, vehicle_speed, brake,
 //                      motor_rpm, motor_temp, driver_occupied, passenger_occupied,
-//                      driver_buckled, passenger_buckled, rear_buckle
+//                      driver_buckled, passenger_buckled, rear_buckle,
+//                      engine_rpm, engine_fault, charge_status, charge_fault, charge_power,
+//                      energy_mode, ev_range, fuel_level, fuel_range, gear_status,
+//                      tire_pressure_fl, tire_pressure, tire_pressure_fr, tire_pressure_rl, tire_pressure_rr
 static const ShmFieldIndex FIELD_TO_SHM[] = {
-    SHM_FIELD_BAT_VOLT,          // [0] bat_volt
-    SHM_FIELD_BAT_CURR,          // [1] bat_curr
-    SHM_FIELD_BAT_SOC,           // [2] bat_soc
-    SHM_FIELD_VEHICLE_SPEED,     // [3] vehicle_speed
-    SHM_FIELD_BRAKE,             // [4] brake
-    SHM_FIELD_MOTOR_RPM,         // [5] motor_rpm
-    SHM_FIELD_MOTOR_TEMP,        // [6] motor_temp
-    SHM_FIELD_DRIVER_OCCUPIED,   // [7] driver_occupied
-    SHM_FIELD_PASSENGER_OCCUPIED,// [8] passenger_occupied
-    SHM_FIELD_DRIVER_BUCKLED,    // [9] driver_buckled
-    SHM_FIELD_PASSENGER_BUCKLED, // [10] passenger_buckled
-    SHM_FIELD_REAR_BUCKLE,       // [11] rear_buckle
+    SHM_FIELD_BAT_VOLT,           // [0] bat_volt
+    SHM_FIELD_BAT_CURR,           // [1] bat_curr
+    SHM_FIELD_BAT_SOC,            // [2] bat_soc
+    SHM_FIELD_BATTERY_TEMP,       // [3] battery_temp
+    SHM_FIELD_VEHICLE_SPEED,      // [4] vehicle_speed
+    SHM_FIELD_BRAKE,              // [5] brake
+    SHM_FIELD_MOTOR_RPM,          // [6] motor_rpm
+    SHM_FIELD_MOTOR_TEMP,         // [7] motor_temp
+    SHM_FIELD_DRIVER_OCCUPIED,    // [8] driver_occupied
+    SHM_FIELD_PASSENGER_OCCUPIED, // [9] passenger_occupied
+    SHM_FIELD_DRIVER_BUCKLED,     // [10] driver_buckled
+    SHM_FIELD_PASSENGER_BUCKLED,  // [11] passenger_buckled
+    SHM_FIELD_REAR_BUCKLE,        // [12] rear_buckle
+    SHM_FIELD_ENGINE_RPM,         // [13] engine_rpm
+    SHM_FIELD_ENGINE_FAULT,        // [14] engine_fault
+    SHM_FIELD_CHARGE_STATUS,      // [15] charge_status
+    SHM_FIELD_COUNT,              // [16] charge_fault (not mapped to SHM)
+    SHM_FIELD_CHARGE_POWER,       // [17] charge_power
+    SHM_FIELD_ENERGY_MODE,        // [18] energy_mode
+    SHM_FIELD_EV_RANGE,            // [19] ev_range
+    SHM_FIELD_FUEL_LEVEL,         // [20] fuel_level
+    SHM_FIELD_FUEL_RANGE,         // [21] fuel_range
+    SHM_FIELD_GEAR_STATUS,        // [22] gear_status
+    // [23-27] tire_pressure fields - not mapped to SHM
+    SHM_FIELD_COUNT,              // [23] tire_pressure_fl
+    SHM_FIELD_COUNT,              // [24] tire_pressure
+    SHM_FIELD_COUNT,              // [25] tire_pressure_fr
+    SHM_FIELD_COUNT,              // [26] tire_pressure_rl
+    SHM_FIELD_COUNT,              // [27] tire_pressure_rr
 };
 static const int FIELD_TO_SHM_COUNT = sizeof(FIELD_TO_SHM) / sizeof(FIELD_TO_SHM[0]);
 
@@ -88,19 +108,32 @@ static void indicator_on_state(const char* id, bool on, bool flash,
 static void sync_field_to_shm(int field_idx, const DisplayData* dd) {
     if (field_idx < 0 || field_idx >= FIELD_TO_SHM_COUNT) return;
     ShmFieldIndex sid = FIELD_TO_SHM[field_idx];
+    if (sid == SHM_FIELD_COUNT) return; // unmapped field (e.g. tire_pressure)
     switch (field_idx) {
         case 0: shm_display_set_float(sid, dd->bat_volt); break;
         case 1: shm_display_set_float(sid, dd->bat_curr); break;
         case 2: shm_display_set_uint8(sid, dd->bat_soc); break;
-        case 3: shm_display_set_float(sid, dd->vehicle_speed); break;
-        case 4: shm_display_set_uint8(sid, dd->brake); break;
-        case 5: shm_display_set_float(sid, dd->motor_rpm); break;
-        case 6: shm_display_set_uint8(sid, dd->motor_temp); break;
-        case 7: shm_display_set_uint8(sid, dd->driver_occupied); break;
-        case 8: shm_display_set_uint8(sid, dd->passenger_occupied); break;
-        case 9: shm_display_set_uint8(sid, dd->driver_buckled); break;
-        case 10: shm_display_set_uint8(sid, dd->passenger_buckled); break;
-        case 11: shm_display_set_uint8(sid, dd->rear_buckle); break;
+        case 3: shm_display_set_uint8(sid, (uint8_t)dd->battery_temp); break; // int8_t -> uint8_t
+        case 4: shm_display_set_float(sid, dd->vehicle_speed); break;
+        case 5: shm_display_set_uint8(sid, dd->brake); break;
+        case 6: shm_display_set_float(sid, dd->motor_rpm); break;
+        case 7: shm_display_set_uint8(sid, dd->motor_temp); break;
+        case 8: shm_display_set_uint8(sid, dd->driver_occupied); break;
+        case 9: shm_display_set_uint8(sid, dd->passenger_occupied); break;
+        case 10: shm_display_set_uint8(sid, dd->driver_buckled); break;
+        case 11: shm_display_set_uint8(sid, dd->passenger_buckled); break;
+        case 12: shm_display_set_uint8(sid, dd->rear_buckle); break;
+        case 13: shm_display_set_uint16(sid, dd->engine_rpm); break;
+        case 14: shm_display_set_uint8(sid, dd->engine_fault); break;
+        case 15: shm_display_set_uint8(sid, dd->charge_status); break;
+        case 16: /* charge_fault: no SHM field, skip */ break;
+        case 17: shm_display_set_float(sid, dd->charge_power); break;
+        case 18: shm_display_set_uint8(sid, dd->energy_mode); break;
+        case 19: shm_display_set_uint16(sid, dd->ev_range); break;
+        case 20: shm_display_set_uint8(sid, dd->fuel_level); break;
+        case 21: shm_display_set_uint16(sid, dd->fuel_range); break;
+        case 22: shm_display_set_uint8(sid, dd->gear_status); break;
+        // case 23-27: tire_pressure fields - not mapped to SHM
     }
 }
 
@@ -127,10 +160,26 @@ static void process_can_frame(uint32_t can_id, const uint8_t* data, size_t len) 
                     case 0: value = dd.bat_volt; break;
                     case 1: value = dd.bat_curr; break;
                     case 2: value = dd.bat_soc; break;
-                    case 3: value = dd.vehicle_speed; break;
-                    case 4: value = dd.brake; break;
-                    case 5: value = dd.motor_rpm; break;
-                    case 6: value = dd.motor_temp; break;
+                    case 3: value = dd.battery_temp; break;
+                    case 4: value = dd.vehicle_speed; break;
+                    case 5: value = dd.brake; break;
+                    case 6: value = dd.motor_rpm; break;
+                    case 7: value = dd.motor_temp; break;
+                    case 8: value = dd.driver_occupied; break;
+                    case 9: value = dd.passenger_occupied; break;
+                    case 10: value = dd.driver_buckled; break;
+                    case 11: value = dd.passenger_buckled; break;
+                    case 12: value = dd.rear_buckle; break;
+                    case 13: value = dd.engine_rpm; break;
+                    case 14: value = dd.engine_fault; break;
+                    case 15: value = dd.charge_status; break;
+                    case 16: value = dd.charge_fault; break;
+                    case 17: value = dd.charge_power; break;
+                    case 18: value = dd.energy_mode; break;
+                    case 19: value = dd.ev_range; break;
+                    case 20: value = dd.fuel_level; break;
+                    case 21: value = dd.fuel_range; break;
+                    case 22: value = dd.gear_status; break;
                     default: break;
                 }
                 g_alarmRuntime->onValueChanged(key, value);

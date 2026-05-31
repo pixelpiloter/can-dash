@@ -22,7 +22,7 @@ struct SignalMonitorDef {
     float       max_value;
     float       max_delta;      // 0=不检测突变
     bool        smoothing;
-    int         smoothing_window;
+    uint8_t     smoothing_window;
 };
 
 struct SignalState {

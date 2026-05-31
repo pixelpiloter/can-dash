@@ -6,7 +6,7 @@
 **优先级**: High
 **来源**:   indicators.yaml (已有) / alarm_rules.yaml (charge_fault_alarm)
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: v1.0
 
 ---
 

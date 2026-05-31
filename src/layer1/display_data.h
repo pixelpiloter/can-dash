@@ -30,5 +30,10 @@ typedef struct {
     uint8_t       fuel_level;   // unit: %
     uint16_t      fuel_range;   // unit: km
     uint8_t       gear_status;   // unit: 
+    uint16_t      tire_pressure_fl;   // unit: bar
+    uint16_t      tire_pressure;   // unit: bar
+    uint16_t      tire_pressure_fr;   // unit: bar
+    uint16_t      tire_pressure_rl;   // unit: bar
+    uint16_t      tire_pressure_rr;   // unit: bar
 } DisplayData;
 

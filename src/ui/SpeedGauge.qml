@@ -1,57 +1,76 @@
-// GaugeCanvas.qml - 汽车仪表盘，三层结构：
-//   底层 Canvas：画表盘背景+刻度+红色警戒区（静态，只画一次）
-//   中层 Canvas：画指针（value 变化时重绘）
-//   顶层 QML Text：显示数值+单位（value 变化时更新）
-//
-// 警戒区/指针颜色支持：
-//   redZoneStartValue  > 0 时：绘制红色弧形警戒区
-//   warningValue/dangerValue：动态指针颜色（绿→黄→红）
+// SpeedGauge.qml - 车速表专用组件
+//   范围: 0~260 km/h
+//   弧度: 240° (起始 210°, 终止 330°)
+//   红色警戒区: 220 km/h 起
+//   指针颜色: 绿色(正常) / 黄色(≥180) / 红色(≥220)
+//   超时显示: vehicle_speed === 0 持续 >1s → 显示 "---"，指针归零
 import QtQuick 2.15
 
 Item {
     id: root
-    property real value: 0
+    property real value: 0          // 外部绑定：dashboard displayData["vehicle_speed"]
     property real minValue: 0
     property real maxValue: 260
     property string unit: "km/h"
     property int majorTickCount: 13
     property int minorTicksPerMajor: 5
-    property real startAngleDeg: 135
-    property real endAngleDeg: 405
+    property real startAngleDeg: 210
+    property real endAngleDeg: 330
     property string dialColor: "#1a2a1a"
-    property string labelColor: "#88FF88"
-
-    // ─── 指针颜色配置 ───
     property string needleColorNormal:  "#00FF88"
     property string needleColorWarning: "#FFAA00"
     property string needleColorDanger:  "#FF2200"
-    property real warningValue: 220      // 黄→红分界
-    property real dangerValue:  260      // 红区上限（用于指针颜色）
+    property string labelColor: "#88FF88"
+    property real warningValue: 180
+    property real dangerValue:  220
 
-    // ─── 红色警戒区配置 ───
-    // NaN = 不绘制红色区；有效值 = 警戒区起始值
-    property real redZoneStartValue: NaN
+    width: 580
+    height: 580
 
-    width: 280
-    height: 280
+    // ─── 超时检测：value === 0 持续 >1s ───
+    property int _zeroCount: 0
+    property bool _timedOut: false
+    property real _displayValue: 0
 
-    // 根据当前 value 计算指针颜色
-    function computeNeedleColor(v) {
-        if (v >= warningValue) return needleColorDanger
-        if (v >= minValue + (maxValue - minValue) * 0.7) return needleColorWarning
-        return needleColorNormal
+    onValueChanged: {
+        if (value === 0 || value < 0.5) {
+            // 保持 _displayValue 为 0（指针归零）
+        } else {
+            _displayValue = value
+        }
     }
 
-    // 动态指针颜色（随 value 变化）
-    property string currentNeedleColor: computeNeedleColor(value)
+    Timer {
+        interval: 100
+        running: true
+        repeat: true
+        onTriggered: {
+            if (value === 0 || value < 0.5) {
+                _zeroCount++
+            } else {
+                _zeroCount = 0
+                _timedOut = false
+            }
+            if (_zeroCount > 10 && !_timedOut) {
+                _timedOut = true
+            }
+        }
+    }
 
-    // ─── 底层：表盘背景 + 刻度 + 红色警戒区（静态，只画一次）───
+    // ─── 指针颜色（动态）───
+    function computeNeedleColor(v) {
+        if (v >= dangerValue)  return needleColorDanger
+        if (v >= warningValue) return needleColorWarning
+        return needleColorNormal
+    }
+    property string currentNeedleColor: computeNeedleColor(_timedOut ? 0 : value)
+
+    // ─── 底层：表盘背景 + 刻度 + 红色警戒区 ───
     Canvas {
         id: bgCanvas
         anchors.fill: parent
         antialiasing: true
         smooth: true
-
         Component.onCompleted: requestPaint()
 
         onPaint: {
@@ -138,14 +157,13 @@ Item {
                 }
             }
 
-            // ─── 红色警戒区弧形（仅当 redZoneStartValue 有效时绘制）───
-            if (!isNaN(redZoneStartValue) && redZoneStartValue > minValue && redZoneStartValue < maxValue) {
-                var tStart = (redZoneStartValue - minValue) / (maxValue - minValue)
-                var tEnd   = 1.0
+            // ─── 红色警戒区弧形 (220 km/h 起) ───
+            var redZoneStart = 220
+            if (redZoneStart > minValue && redZoneStart < maxValue) {
+                var tStart = (redZoneStart - minValue) / (maxValue - minValue)
                 var arcStart = startAngleDeg + tStart * angleRange
-                var arcEnd   = startAngleDeg + tEnd   * angleRange
+                var arcEnd   = endAngleDeg
 
-                // 警戒区弧形（靠近外圈内侧）
                 var arcR = outerR - 30
                 ctx.beginPath()
                 ctx.arc(cx, cy, arcR, arcStart * Math.PI / 180, arcEnd * Math.PI / 180)
@@ -157,7 +175,7 @@ Item {
                 // 填充半透明红色扇形
                 ctx.beginPath()
                 ctx.moveTo(cx, cy)
-                ctx.arc(cx, cy, arcR + 6, arcStart * Math.PI / 180, arcEnd * Math.PI / 180)
+                ctx.arc(cx, cy, arcR + 8, arcStart * Math.PI / 180, arcEnd * Math.PI / 180)
                 ctx.closePath()
                 var redFill = ctx.createRadialGradient(cx, cy, arcR - 5, cx, cy, arcR + 10)
                 redFill.addColorStop(0, "#FF220015")
@@ -183,7 +201,7 @@ Item {
         }
     }
 
-    // ─── 中层：指针（独立 Canvas，value 变化时重绘）───
+    // ─── 中层：指针 ───
     Canvas {
         id: needleCanvas
         anchors.fill: parent
@@ -208,11 +226,12 @@ Item {
 
             ctx.clearRect(0, 0, w, h)
 
-            var t = Math.max(0, Math.min(1, (value - minValue) / (maxValue - minValue)))
+            var v = _timedOut ? 0 : value
+            var t = Math.max(0, Math.min(1, (v - minValue) / (maxValue - minValue)))
             var needleAngle = startAngleDeg + t * (endAngleDeg - startAngleDeg)
             var rad = needleAngle * Math.PI / 180
 
-            var needleCol = root.currentNeedleColor
+            var needleCol = currentNeedleColor
 
             ctx.save()
             ctx.translate(cx, cy)
@@ -220,7 +239,6 @@ Item {
             ctx.shadowColor = needleCol
             ctx.shadowBlur = 10
 
-            // 指针三角形：顶点朝右（0°），rotate后指向刻度
             ctx.beginPath()
             ctx.moveTo(needleLen, 0)
             ctx.lineTo(-8, -5)
@@ -236,24 +254,25 @@ Item {
         }
     }
 
-    // ─── 顶层：数值 + 单位（独立 Text，value 变化时更新）───
-    // 指针底部在 cy+5，文字放在 cy+outerR*0.52 以下，避让指针
+    // ─── 顶层：数值 + 单位 ───
     Column {
-        id: valueDisplay
         anchors.centerIn: parent
         anchors.verticalCenterOffset: root.width * 0.16
         Text {
-            id: valueText
+            id: speedValueText
             anchors.horizontalCenter: parent.horizontalCenter
-            // 子类可覆盖 text 值（SpeedGauge 用 timeoutText）
-            text: root.value.toFixed(0)
-            color: "#FFFFFF"
+            text: _timedOut ? "---" : Math.round(_timedOut ? 0 : value).toString()
+            color: {
+                if (_timedOut) return "#666666"
+                if (value >= 220) return "#FF2200"
+                if (value >= 180) return "#FFAA00"
+                return "#FFFFFF"
+            }
             font.family: "Roboto Mono, monospace"
             font.pixelSize: Math.round(root.width * 0.20)
             font.weight: Font.Bold
         }
         Text {
-            id: unitText
             anchors.horizontalCenter: parent.horizontalCenter
             text: unit
             color: "#888888"
@@ -263,6 +282,6 @@ Item {
         }
     }
 
-    onWidthChanged: bgCanvas.requestPaint()
+    onWidthChanged:  bgCanvas.requestPaint()
     onHeightChanged: bgCanvas.requestPaint()
 }

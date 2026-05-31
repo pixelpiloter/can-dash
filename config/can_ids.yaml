@@ -230,3 +230,60 @@ can_sources:
         formula: "x"
         unit: ""
         # 0=P, 1=R, 2=N, 3=D, 4=S
+
+  - name: "TIRE_FL"
+    can_id: 0x3A0
+    period_ms: 100
+    fields:
+      - name: "tire_pressure_fl"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x / 10.0"
+        unit: "bar"
+
+      - name: "tire_pressure"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x / 10.0"
+        unit: "bar"
+        # 虚拟字段：在 C++ 层计算 min(tire_pressure_fl/fr/rl/rr)
+
+  - name: "TIRE_FR"
+    can_id: 0x3A1
+    period_ms: 100
+    fields:
+      - name: "tire_pressure_fr"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x / 10.0"
+        unit: "bar"
+
+  - name: "TIRE_RL"
+    can_id: 0x3A2
+    period_ms: 100
+    fields:
+      - name: "tire_pressure_rl"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x / 10.0"
+        unit: "bar"
+
+  - name: "TIRE_RR"
+    can_id: 0x3A3
+    period_ms: 100
+    fields:
+      - name: "tire_pressure_rr"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x / 10.0"
+        unit: "bar"

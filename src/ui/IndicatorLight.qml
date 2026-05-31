@@ -56,6 +56,7 @@ Item {
             case "ready":                          return "#00FF88"
             case "high_volt":                      return "#FFAA00"
             case "bat":                            return "#FF2200"
+            case "seatbelt":                       return "#FF2200"
             default:                               return "#FF2200"
         }
     }
@@ -237,6 +238,25 @@ Item {
                     ctx.lineTo(cx - size * 0.2, cy + size * 0.05)
                     ctx.lineTo(cx + size * 0.15, cy + size * 0.05)
                     ctx.closePath()
+                    ctx.fill()
+                    break
+                case "seatbelt":
+                    // 安全带：斜向条带 + 卡扣
+                    ctx.lineWidth = size * 0.18
+                    ctx.lineCap = "round"
+                    // 斜向带（从左上到右下）
+                    ctx.beginPath()
+                    ctx.moveTo(cx - size * 0.45, cy - size * 0.4)
+                    ctx.lineTo(cx + size * 0.1, cy + size * 0.4)
+                    ctx.stroke()
+                    // 横带（水平）
+                    ctx.beginPath()
+                    ctx.moveTo(cx - size * 0.1, cy - size * 0.1)
+                    ctx.lineTo(cx + size * 0.45, cy - size * 0.1)
+                    ctx.stroke()
+                    // 卡扣圆
+                    ctx.beginPath()
+                    ctx.arc(cx - size * 0.05, cy + size * 0.05, size * 0.12, 0, Math.PI * 2)
                     ctx.fill()
                     break
                 case "bat":
