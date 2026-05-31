@@ -51,8 +51,8 @@ public:
     void setLanguage(const QString& lang);
     QString currentFont() const;
 
-    bool alarmActive() const { return m_alarmActive; }
-    QString alarmMessageZh() const { return m_alarmMessageZh; }
+    bool alarmActive() const { return m_backendAlarmActive; }
+    QString alarmMessageZh() const { return m_backendAlarmMessageZh; }
     QVariantList alarmList() const { return m_alarmList; }
 
     bool seatBeltWarningActive() const { return m_seatBeltActive; }
@@ -103,6 +103,9 @@ private:
     QString m_currentLang = "zh_CN";
     bool m_alarmActive = false;
     QString m_alarmMessageZh;
+    // 后端报警状态（由 alarm runtime 回调驱动）
+    bool m_backendAlarmActive = false;
+    QString m_backendAlarmMessageZh;
     QVariantList m_alarmList;
 
     bool m_seatBeltActive = false;

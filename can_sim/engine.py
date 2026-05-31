@@ -130,11 +130,27 @@ class CanSimulator:
 
 def main():
     sim = CanSimulator()
-    try:
-        sim.run()
-    except KeyboardInterrupt:
-        sim.running = False
-        print("\n[CanSim] Stopped")
+    reconnect_delay = 1.0
+    while True:
+        try:
+            sim.running = False
+            sim = CanSimulator()
+            sim.run()
+        except BrokenPipeError:
+            print("[CanSim] Broken pipe, reconnecting...")
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(5.0, reconnect_delay * 1.5)
+            continue
+        except KeyboardInterrupt:
+            sim.running = False
+            print("\n[CanSim] Stopped")
+            break
+        except Exception as e:
+            print(f"[CanSim] Error: {e}, reconnecting in {reconnect_delay}s...")
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(5.0, reconnect_delay * 1.5)
+            continue
+        break
 
 
 if __name__ == "__main__":

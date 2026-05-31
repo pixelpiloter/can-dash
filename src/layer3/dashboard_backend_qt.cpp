@@ -29,7 +29,25 @@ void DashboardBackend::init() {
     m_converter->init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
 
     // 报警 Runtime
+    // 报警回调
     AlarmCallbacks alarmCb = {};
+    alarmCb.onAlarmStateChanged = [](const char* alarm_name, bool active, void* user_data) {
+        auto* self = static_cast<DashboardBackend*>(user_data);
+        self->m_backendAlarmActive = active;
+        if (active) {
+            // 找到当前最高优先级的报警文本
+            AlarmStatus statuses[10];
+            int count = 0;
+            self->m_alarmRuntime->getActiveAlarms(statuses, &count);
+            if (count > 0) {
+                self->m_backendAlarmMessageZh = QString::fromUtf8(statuses[0].text_zh);
+            }
+        } else {
+            self->m_backendAlarmMessageZh = "";
+        }
+        emit self->alarmActiveChanged();
+    };
+    alarmCb.user_data = this;
     m_alarmRuntime = new AlarmRuntime(alarmCb);
     m_alarmRuntime->init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
                          ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
@@ -64,11 +82,14 @@ QString DashboardBackend::currentLanguage() const {
 }
 
 void DashboardBackend::setLanguage(const QString& lang) {
+    qDebug() << "[i18n] setLanguage called with:" << lang;
     if (lang == "zh_CN" || lang == "en_US") {
         m_currentLang = lang;
         m_langManager->setLanguage(lang == "zh_CN" ? LANG_ZH_CN : LANG_EN_US);
         emit languageChanged();
-        qDebug() << "[i18n] Language switched to:" << lang;
+        qDebug() << "[i18n] Language switched to:" << lang << "m_currentLang now:" << m_currentLang;
+    } else {
+        qDebug() << "[i18n] setLanguage: unknown lang:" << lang;
     }
 }
 
@@ -125,23 +146,76 @@ void DashboardBackend::onCanFrameReceived(quint32 canId, const QByteArray& data)
         if (strcmp(def->display_key, "motor_rpm") == 0)       has_rpm       = true;
         if (strcmp(def->display_key, "motor_temp") == 0)     has_motor_temp = true;
     }
-    if (has_bat_volt)   newData["bat_volt"] = dd.bat_volt;
+    if (has_bat_volt) {
+        newData["bat_volt"] = dd.bat_volt;
+        m_alarmRuntime->onValueChanged("bat_volt", dd.bat_volt);
+    }
     if (has_bat_curr)   newData["bat_curr"] = dd.bat_curr;
-    if (has_bat_soc)    newData["bat_soc"] = dd.bat_soc;
-    if (has_speed)      newData["vehicle_speed"] = dd.vehicle_speed;
-    if (has_rpm)        newData["motor_rpm"] = dd.motor_rpm;
-    if (has_motor_temp) newData["motor_temp"] = dd.motor_temp;
+    if (has_bat_soc) {
+        newData["bat_soc"] = dd.bat_soc;
+        m_alarmRuntime->onValueChanged("bat_soc", dd.bat_soc);
+    }
+    if (has_speed) {
+        newData["vehicle_speed"] = dd.vehicle_speed;
+        m_alarmRuntime->onValueChanged("vehicle_speed", dd.vehicle_speed);
+    }
+    if (has_rpm) {
+        newData["motor_rpm"] = dd.motor_rpm;
+        m_alarmRuntime->onValueChanged("motor_rpm", dd.motor_rpm);
+    }
+    if (has_motor_temp) {
+        newData["motor_temp"] = dd.motor_temp;
+        m_alarmRuntime->onValueChanged("motor_temp", dd.motor_temp);
+    }
     m_displayData = newData;
     static int tick_count = 0;
     if (++tick_count % 20 == 0) {
-        qDebug() << "CAN: speed=" << dd.vehicle_speed << " bat_volt=" << dd.bat_volt
-                 << " soc=" << dd.bat_soc << " rpm=" << dd.motor_rpm;
+        qDebug() << "CAN: speed=" << m_displayData["vehicle_speed"].toFloat()
+                 << " bat_volt=" << m_displayData["bat_volt"].toFloat()
+                 << " soc=" << m_displayData["bat_soc"].toFloat()
+                 << " rpm=" << m_displayData["motor_rpm"].toFloat();
     }
     emit displayDataChanged();
 }
 
 void DashboardBackend::onTick() {
     uint64_t nowMs = QDateTime::currentMSecsSinceEpoch();
+
+    // ─── 检查 socket 连接（接受等待中的连接）───
+    if (m_socketServer->hasPendingConnections()) {
+        if (m_socketConnection) {
+            qDebug() << "[SocketServer] Already have connection, skipping";
+        } else {
+            m_socketConnection = m_socketServer->nextPendingConnection();
+            if (m_socketConnection) {
+                qDebug() << "[SocketServer] Client connected";
+                connect(m_socketConnection, &QLocalSocket::disconnected, this, [this]() {
+                    qDebug() << "[SocketServer] Client disconnected";
+                    m_socketConnection->deleteLater();
+                    m_socketConnection = nullptr;
+                });
+                connect(m_socketConnection, &QLocalSocket::errorOccurred, this, [this] {
+                    qDebug() << "[SocketServer] Socket error:" << m_socketConnection->errorString();
+                });
+            }
+        }
+    }
+
+    // ─── 接受等待中的 socket 连接 ───
+    if (!m_socketConnection && m_socketServer->hasPendingConnections()) {
+        m_socketConnection = m_socketServer->nextPendingConnection();
+        if (m_socketConnection) {
+            qDebug() << "[SocketServer] Client connected";
+            connect(m_socketConnection, &QLocalSocket::disconnected, this, [this]() {
+                qDebug() << "[SocketServer] Client disconnected";
+                m_socketConnection->deleteLater();
+                m_socketConnection = nullptr;
+            });
+            connect(m_socketConnection, &QLocalSocket::errorOccurred, this, [this] {
+                qDebug() << "[SocketServer] Socket error:" << m_socketConnection->errorString();
+            });
+        }
+    }
 
     // ─── 读取所有可用的 CAN 帧 ───
     if (m_socketConnection && m_socketConnection->bytesAvailable() > 0) {

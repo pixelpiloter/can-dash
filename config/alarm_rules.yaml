@@ -81,20 +81,3 @@ alarm_rules:
         text_en: "OVERSPEED - SLOW DOWN"
         font_size: 32
         color: "#FF8800"
-
-  # ─── 胎压报警（模拟值触发）───
-  - name: "tire_pressure_warn"
-    display_key: "tire_pressure"
-    condition: "value < 1.8"
-    priority: "medium"
-    duration_ms: 1500
-    actions:
-      - type: "indicator_light"
-        widget: "tire_pressure_light"
-        flash: true
-        flash_hz: 2
-      - type: "alarm_text"
-        text_zh: "胎压异常！"
-        text_en: "TIRE PRESSURE WARNING"
-        font_size: 28
-        color: "#FFAA00"

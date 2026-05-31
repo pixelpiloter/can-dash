@@ -18,7 +18,7 @@ ApplicationWindow {
     property real displaySpeed: 0
     property real displayRpm: 0
 
-    // ─── 20ms 定时器：积分更新显示值 ───
+    // ─── 20ms 定时器 ───
     Timer {
         id: displayTimer
         interval: 20
@@ -54,54 +54,9 @@ ApplicationWindow {
 
             motorTempText.text = temp + dashboard.tr("unit.temperature")
 
-            // 驱动新的指示灯（示例：停车时驻车制动灯亮）
+            // 指示灯逻辑
             dashboard.setIndicator("park_brake_light", !dashboard.isMoving)
-            // 示例：速度>0时 READY 灯亮
             dashboard.setIndicator("ready_go_light", dashboard.isMoving)
-        }
-    }
-
-    // ─── 语言切换 ───
-    Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 10
-        width: langSelector.width + 10
-        height: 36
-        color: "#AA000000"
-        radius: 6
-
-        Row {
-            id: langSelector
-            anchors.centerIn: parent
-            spacing: 6
-
-            Rectangle {
-                width: 50; height: 26
-                radius: 4
-                color: dashboard.currentLanguage === "zh_CN" ? "#33550000" : "transparent"
-                Text {
-                    anchors.centerIn: parent
-                    text: "中文"
-                    color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#888888"
-                    font.pixelSize: 13
-                    font.weight: dashboard.currentLanguage === "zh_CN" ? Font.Bold : Font.Normal
-                }
-                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("zh_CN") }
-            }
-            Rectangle {
-                width: 50; height: 26
-                radius: 4
-                color: dashboard.currentLanguage === "en_US" ? "#33550000" : "transparent"
-                Text {
-                    anchors.centerIn: parent
-                    text: "EN"
-                    color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#888888"
-                    font.pixelSize: 13
-                    font.weight: dashboard.currentLanguage === "en_US" ? Font.Bold : Font.Normal
-                }
-                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("en_US") }
-            }
         }
     }
 
@@ -131,114 +86,16 @@ ApplicationWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 14
 
-            // 左转向灯
-            IndicatorLight {
-                id: leftTurnLight
-                width: 55; height: 55
-                symbol: "turn_left"
-                on: dashboard.indicatorOn("left_turn_light")
-                flash: true
-                flashHz: 1.5
-            }
-
-            // 右转向灯
-            IndicatorLight {
-                id: rightTurnLight
-                width: 55; height: 55
-                symbol: "turn_right"
-                on: dashboard.indicatorOn("right_turn_light")
-                flash: true
-                flashHz: 1.5
-            }
-
+            IndicatorLight { id: leftTurnLight;    width: 55; height: 55; symbol: "turn_left";     on: dashboard.indicatorOn("left_turn_light");      flash: true;  flashHz: 1.5 }
+            IndicatorLight { id: rightTurnLight;   width: 55; height: 55; symbol: "turn_right";    on: dashboard.indicatorOn("right_turn_light");     flash: true;  flashHz: 1.5 }
             Rectangle { width: 2; height: 50; color: "#333333" }
-
-            // 电池告警灯
-            IndicatorLight {
-                id: batWarnLight
-                width: 55; height: 55
-                symbol: "bat"
-                on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("压") >= 0
-                flash: true
-                flashHz: 2
-            }
-
-            // 驻车制动灯
-            IndicatorLight {
-                id: parkBrakeLight
-                width: 55; height: 55
-                symbol: "park"
-                on: dashboard.indicatorOn("park_brake_light")
-                flash: false
-            }
-
-            // READY 灯
-            IndicatorLight {
-                id: readyLight
-                width: 55; height: 55
-                symbol: "ready"
-                on: dashboard.indicatorOn("ready_go_light")
-                flash: false
-            }
-
-            // 胎压灯
-            IndicatorLight {
-                id: tireLight
-                width: 55; height: 55
-                symbol: "tire"
-                on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("胎压") >= 0
-                flash: true
-                flashHz: 2
-            }
-
-            // 发动机故障灯
-            IndicatorLight {
-                id: engineLight
-                width: 55; height: 55
-                symbol: "check_engine"
-                on: dashboard.indicatorOn("check_engine_light")
-                flash: true
-                flashHz: 1
-            }
-
-            // 高压灯
-            IndicatorLight {
-                id: highVoltLight
-                width: 55; height: 55
-                symbol: "high_volt"
-                on: dashboard.indicatorOn("high_voltage_light")
-                flash: false
-            }
-
-            // 雾灯
-            IndicatorLight {
-                id: fogLight
-                width: 55; height: 55
-                symbol: "fog"
-                on: dashboard.indicatorOn("fog_light")
-                flash: false
-            }
-        }
-    }
-
-    // ─── 报警横幅 ───
-    Rectangle {
-        id: alarmBanner
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 88
-        visible: dashboard.alarmActive
-        width: 620; height: 60
-        color: "#DD000000"
-        radius: 8
-        border.color: "#FF4400"
-        border.width: 2
-
-        Text {
-            anchors.centerIn: parent
-            text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : ""
-            color: "#FF4400"
-            font.pixelSize: 30
-            font.weight: Font.Bold
+            IndicatorLight { id: batWarnLight;     width: 55; height: 55; symbol: "bat";           on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("压") >= 0; flash: true; flashHz: 2 }
+            IndicatorLight { id: parkBrakeLight;   width: 55; height: 55; symbol: "park";          on: dashboard.indicatorOn("park_brake_light");    flash: false }
+            IndicatorLight { id: readyLight;       width: 55; height: 55; symbol: "ready";         on: dashboard.indicatorOn("ready_go_light");     flash: false }
+            IndicatorLight { id: tireLight;        width: 55; height: 55; symbol: "tire";          on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("胎压") >= 0; flash: true; flashHz: 2 }
+            IndicatorLight { id: engineLight;      width: 55; height: 55; symbol: "check_engine"; on: dashboard.indicatorOn("check_engine_light"); flash: true;  flashHz: 1 }
+            IndicatorLight { id: highVoltLight;    width: 55; height: 55; symbol: "high_volt";    on: dashboard.indicatorOn("high_voltage_light");  flash: false }
+            IndicatorLight { id: fogLight;         width: 55; height: 55; symbol: "fog";           on: dashboard.indicatorOn("fog_light");          flash: false }
         }
     }
 
@@ -278,38 +135,29 @@ ApplicationWindow {
         endAngleDeg: 405
     }
 
-    // ─── 右侧：电池 + SOC + 行驶状态 + 安全带 ───
+    // ─── 右侧：电池 + SOC + 行驶状态 + 温度 ───
     Column {
         x: 1420; y: 180
         spacing: 16
 
-        // 电池电压
         Rectangle {
             width: 220; height: 70
-            color: "#1a1a1a"
-            radius: 8
-            border.color: "#333333"
-            border.width: 1
-
+            color: "#1a1a1a"; radius: 8
+            border.color: "#333333"; border.width: 1
             Text {
                 id: batVoltText
                 anchors.centerIn: parent
                 text: (dashboard.displayData["bat_volt"] || 0).toFixed(1) + " V"
-                color: "#00FF88"
-                font.pixelSize: 30
-                font.weight: Font.Bold
+                color: "#00FF88"; font.pixelSize: 30; font.weight: Font.Bold
                 font.family: dashboard.currentFont
             }
         }
 
-        // SOC 进度条
         Rectangle {
             id: batPanel
             width: 220; height: 28
-            color: "#1a1a1a"
-            radius: 6
+            color: "#1a1a1a"; radius: 6
             border.color: "#333333"
-
             Rectangle {
                 id: socBar
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
@@ -317,63 +165,41 @@ ApplicationWindow {
                 radius: 6
                 color: "#00FF88"
             }
-
             Text {
                 id: socText
                 anchors.centerIn: parent
                 text: "SOC " + (dashboard.displayData["bat_soc"] || 0).toFixed(0) + "%"
-                color: "#FFFFFF"
-                font.pixelSize: 13
-                font.weight: Font.Bold
+                color: "#FFFFFF"; font.pixelSize: 13; font.weight: Font.Bold
             }
         }
 
-        // 行驶状态
         Rectangle {
             width: 220; height: 70
-            color: "#1a1a1a"
-            radius: 8
+            color: "#1a1a1a"; radius: 8
             border.color: dashboard.isMoving ? "#00AA44" : "#333333"
             border.width: dashboard.isMoving ? 2 : 1
-
-            Column {
-                anchors.centerIn: parent
+            Column { anchors.centerIn: parent; spacing: 2
                 Text {
-                    text: dashboard.isMoving
-                        ? dashboard.tr("status.driving")
-                        : dashboard.tr("status.parked")
-                    color: dashboard.isMoving ? "#00FF88" : "#666666"
-                    font.pixelSize: 22
-                    font.weight: Font.Bold
+                    text: dashboard.isMoving ? dashboard.tr("status.driving") : dashboard.tr("status.parked")
+                    color: dashboard.isMoving ? "#00FF88" : "#666666"; font.pixelSize: 22; font.weight: Font.Bold
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
-                    text: dashboard.isMoving
-                        ? (dashboard.tr("status.normal") + " ⚡")
-                        : dashboard.tr("status.standby") + " ◇"
-                    color: "#888888"
-                    font.pixelSize: 13
+                    text: dashboard.isMoving ? (dashboard.tr("status.normal") + " ⚡") : dashboard.tr("status.standby") + " ◇"
+                    color: "#888888"; font.pixelSize: 13
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
         }
 
-        // 电机温度
         Rectangle {
             width: 220; height: 60
-            color: "#1a1a1a"
-            radius: 8
-            border.color: "#333333"
-
-            Row {
-                anchors.centerIn: parent
-                spacing: 8
+            color: "#1a1a1a"; radius: 8; border.color: "#333333"
+            Row { anchors.centerIn: parent; spacing: 8
                 Text {
                     id: motorTempText
                     text: (dashboard.displayData["motor_temp"] || 0) + dashboard.tr("unit.temperature")
-                    color: "#FFAA00"
-                    font.pixelSize: 24
-                    font.weight: Font.Bold
+                    color: "#FFAA00"; font.pixelSize: 24; font.weight: Font.Bold
                 }
             }
         }
@@ -381,18 +207,12 @@ ApplicationWindow {
         // 安全带状态
         Rectangle {
             width: 220; height: 110
-            color: "#1a1a1a"
-            radius: 8
-            border.color: "#333333"
-
-            Row {
-                anchors.centerIn: parent
-                spacing: 8
+            color: "#1a1a1a"; radius: 8; border.color: "#333333"
+            Row { anchors.centerIn: parent; spacing: 8
                 Repeater {
                     model: dashboard.seatIconStates.length
                     Rectangle {
-                        width: 44; height: 75
-                        radius: 4
+                        width: 44; height: 75; radius: 4
                         color: {
                             var s = dashboard.seatIconStates[index]
                             if (!s) return "#333333"
@@ -401,31 +221,22 @@ ApplicationWindow {
                             if (s.buckled) return "#00AA44"
                             return "#333333"
                         }
-
-                        Column {
-                            anchors.centerIn: parent
+                        Column { anchors.centerIn: parent; spacing: 2
                             Text {
                                 text: {
                                     var s = dashboard.seatIconStates[index]
                                     if (!s || !s.occupied) return "—"
                                     return s.buckled ? "✓" : "!"
                                 }
-                                color: "#FFFFFF"
-                                font.pixelSize: 18
-                                font.weight: Font.Bold
+                                color: "#FFFFFF"; font.pixelSize: 18; font.weight: Font.Bold
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
                             Text {
-                                text: {
-                                    var s = dashboard.seatIconStates[index]
-                                    return s ? (s.id || "") : ""
-                                }
-                                color: "#888888"
-                                font.pixelSize: 9
+                                text: { var s = dashboard.seatIconStates[index]; return s ? (s.id || "") : "" }
+                                color: "#888888"; font.pixelSize: 9
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
                         }
-
                         SequentialAnimation on opacity {
                             running: root.visible && dashboard.isMoving && dashboard.seatIconStates[index] && dashboard.seatIconStates[index].warning
                             loops: Animation.Infinite
@@ -438,47 +249,89 @@ ApplicationWindow {
         }
     }
 
+    // ─── 报警横幅（z=10，在表盘之上）───
+    Rectangle {
+        id: alarmBanner
+        z: 10
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 88
+        visible: dashboard.alarmActive
+        width: 620; height: 60
+        color: "#DD000000"; radius: 8
+        border.color: "#FF4400"; border.width: 2
+        Text {
+            anchors.centerIn: parent
+            text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : ""
+            color: "#FF4400"; font.pixelSize: 30; font.weight: Font.Bold
+        }
+    }
+
+    // ─── 语言切换（z=20，最顶层）───
+    Row {
+        id: langSwitch
+        z: 20
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 20
+        anchors.topMargin: 90
+        spacing: 6
+
+        Rectangle {
+            width: 50; height: 36; radius: 6
+            color: dashboard.currentLanguage === "zh_CN" ? "#33550000" : "#AA000000"
+            border.color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#333333"
+            border.width: 1
+            Text {
+                anchors.centerIn: parent
+                text: "中文"
+                color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#888888"
+                font.pixelSize: 14; font.weight: Font.Bold
+            }
+            MouseArea { anchors.fill: parent; onClicked: console.log("switch to zh_CN"); dashboard.setLanguage("zh_CN") }
+        }
+        Rectangle {
+            width: 50; height: 36; radius: 6
+            color: dashboard.currentLanguage === "en_US" ? "#33550000" : "#AA000000"
+            border.color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#333333"
+            border.width: 1
+            Text {
+                anchors.centerIn: parent
+                text: "EN"
+                color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#888888"
+                font.pixelSize: 14; font.weight: Font.Bold
+            }
+            MouseArea { anchors.fill: parent; onClicked: console.log("switch to en_US"); dashboard.setLanguage("en_US") }
+        }
+    }
+
     // ─── 底部状态栏 ───
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         height: 55
-        color: "#AA000000"
-        border.color: "#333333"
-        border.width: 1
-
-        Row {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 60
-
+        color: "#AA000000"; border.color: "#333333"; border.width: 1
+        Row { anchors.fill: parent; anchors.margins: 10; spacing: 60
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "⏱ " + dashboard.tr("app.version") + " 1.0"
-                color: "#666666"
-                font.pixelSize: 14
+                text: "⏱ " + dashboard.tr("app.version")
+                color: "#666666"; font.pixelSize: 14
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "CAN-Dash"
-                color: "#444444"
-                font.pixelSize: 14
+                color: "#444444"; font.pixelSize: 14
             }
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 10; height: 10
-                radius: 5
+                width: 10; height: 10; radius: 5
                 color: dashboard.alarmActive ? "#FF4400" : "#00AA44"
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: dashboard.alarmActive
-                    ? ("⚠ " + dashboard.alarmMessageZh)
-                    : dashboard.tr("alarm.system_normal")
+                text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : dashboard.tr("alarm.system_normal")
                 color: dashboard.alarmActive ? "#FF4400" : "#00AA44"
-                font.pixelSize: 16
-                font.weight: Font.Bold
+                font.pixelSize: 16; font.weight: Font.Bold
             }
         }
     }
