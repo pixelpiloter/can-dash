@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Display Layout Configuration Schema",
+  "description": "UI layout and component binding configuration for can-dash",
+  "type": "object",
+  "required": ["display"],
+  "properties": {
+    "display": {
+      "type": "object",
+      "properties": {
+        "resolution": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light"]
+        },
+        "background": {
+          "type": "string",
+          "description": "Background color hex, e.g. #0A0A0A"
+        },
+        "language": {
+          "type": "string",
+          "enum": ["zh", "en", "zh_en"]
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "layers": { "type": "array" },
+              "components": { "type": "array" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

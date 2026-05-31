@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CAN Signal Status Monitor Configuration Schema",
+  "description": "CAN signal health monitoring configuration for can-dash",
+  "type": "object",
+  "required": ["signals"],
+  "properties": {
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "can_id", "timeout_ms", "validity"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Signal name matching a field.name in can_ids.yaml"
+          },
+          "can_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 536870911
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Stale timeout in milliseconds"
+          },
+          "validity": {
+            "type": "object",
+            "required": ["min", "max"],
+            "properties": {
+              "min": { "type": "number" },
+              "max": { "type": "number" },
+              "max_delta": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Maximum allowed delta between consecutive values"
+              }
+            }
+          },
+          "smoothing": {
+            "type": "boolean",
+            "description": "Enable moving average smoothing"
+          },
+          "smoothing_window": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 100,
+            "description": "Smoothing window size"
+          }
+        }
+      }
+    }
+  }
+}

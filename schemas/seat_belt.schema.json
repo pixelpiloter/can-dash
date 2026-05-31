@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Seat Belt Configuration Schema",
+  "description": "Seat belt status and alarm configuration for can-dash",
+  "type": "object",
+  "required": ["seat_belt"],
+  "properties": {
+    "seat_belt": {
+      "type": "object",
+      "required": ["positions"],
+      "properties": {
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label_zh", "label_en"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": ["driver", "passenger", "rear_left", "rear_center", "rear_right"]
+              },
+              "label_zh": { "type": "string" },
+              "label_en": { "type": "string" },
+              "icon_buckled": { "type": "string" },
+              "icon_unbuckled": { "type": "string" },
+              "icon_empty": { "type": "string" },
+              "can_ids": {
+                "type": "object",
+                "description": "CAN ID mapping for occupied/buckle status",
+                "properties": {
+                  "occupied": {
+                    "oneOf": [
+                      { "type": "integer" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "bit": { "type": "integer" }
+                        }
+                      }
+                    ]
+                  },
+                  "buckle": {
+                    "oneOf": [
+                      { "type": "integer" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "bit": { "type": "integer" }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "sort_priority": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "trigger": {
+          "type": "object",
+          "properties": {
+            "speed_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Speed threshold below which seat belt check is suppressed"
+            },
+            "require_seat_occupied": {
+              "type": "boolean",
+              "description": "Only warn if seat is occupied"
+            }
+          }
+        },
+        "messages": {
+          "type": "object",
+          "properties": {
+            "single_zh": { "type": "string" },
+            "multiple_zh": { "type": "string" },
+            "single_en": { "type": "string" },
+            "multiple_en": { "type": "string" }
+          }
+        },
+        "flash": {
+          "type": "object",
+          "properties": {
+            "active": { "type": "boolean" },
+            "frequency_hz": { "type": "number", "minimum": 0.1, "maximum": 10 }
+          }
+        }
+      }
+    }
+  }
+}

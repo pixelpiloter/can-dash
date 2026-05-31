@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Alarm Rules Configuration Schema",
+  "description": "Alarm rule definition schema for can-dash. 90% of post-launch iterations modify this file.",
+  "type": "object",
+  "required": ["alarm_rules"],
+  "properties": {
+    "alarm_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "display_key", "condition", "priority", "duration_ms", "actions"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Alarm name: lowercase + underscore"
+          },
+          "display_key": {
+            "type": "string",
+            "description": "Bound display variable, must match a field.name in can_ids.yaml"
+          },
+          "condition": {
+            "type": "string",
+            "pattern": "^value\\s*(>=|<=|==|!=|>|<)\\s*-?[0-9.]+$",
+            "description": "Trigger condition in format: value > 420"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Debounce duration in milliseconds"
+          },
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["indicator_light", "alarm_text", "alarm_image", "sound"]
+                },
+                "widget": {
+                  "type": "string",
+                  "description": "Widget ID referencing indicators.yaml, required for indicator_light"
+                },
+                "flash": {
+                  "type": "boolean"
+                },
+                "flash_hz": {
+                  "type": "number",
+                  "minimum": 0.1,
+                  "maximum": 10
+                },
+                "text_zh": {
+                  "type": "string",
+                  "description": "Chinese alarm text"
+                },
+                "text_en": {
+                  "type": "string",
+                  "description": "English alarm text"
+                },
+                "font_size": {
+                  "type": "integer",
+                  "minimum": 8,
+                  "maximum": 128
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Hex color, e.g. #FF4400"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
