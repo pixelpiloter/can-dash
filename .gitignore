@@ -1,5 +1,7 @@
 # build artifacts
 build/
+build-processor/
+qml/
 *.o
 *.a
 *.so
