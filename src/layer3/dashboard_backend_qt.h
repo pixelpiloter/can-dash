@@ -15,6 +15,7 @@ class CanConverter;
 class AlarmRuntime;
 class SeatBeltRuntime;
 class IndicatorRuntime;
+class LanguageManager;
 
 class DashboardBackend : public QObject {
     Q_OBJECT
@@ -35,6 +36,9 @@ class DashboardBackend : public QObject {
 
     // ─── 指示灯状态（QML 绑定）───
     Q_PROPERTY(QVariantMap indicatorStates READ indicatorStates NOTIFY indicatorStatesChanged)
+
+    // ─── 多语言 ───
+    Q_PROPERTY(QString currentLanguage READ currentLanguage NOTIFY languageChanged)
 
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
@@ -59,6 +63,14 @@ public:
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
 
+    // 多语言翻译
+    Q_INVOKABLE QString tr(const QString& key) const;
+    Q_INVOKABLE void setLanguage(const QString& lang);
+    QString currentLanguage() const { return m_currentLanguage; }
+
+    // 指示灯查询
+    Q_INVOKABLE bool indicatorOn(const QString& key) const;
+
     // 指示灯控制（由 AlarmRuntime 调用）
     void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
 
@@ -69,6 +81,7 @@ signals:
     void seatIconStatesChanged();
     void movingChanged();
     void displayDataChanged();
+    void languageChanged();
 
 public slots:
     // 接收 CAN 帧（来自 Unix Socket）
@@ -91,6 +104,9 @@ private:
     AlarmRuntime*     m_alarmRuntime = nullptr;
     SeatBeltRuntime*  m_seatBeltRuntime = nullptr;
     IndicatorRuntime* m_indicatorRuntime = nullptr;
+    LanguageManager*  m_langManager = nullptr;
+
+    QString m_currentLanguage = "zh_CN";
 
     // Unix Socket 服务器
     QLocalServer*  m_socketServer = nullptr;

@@ -81,7 +81,7 @@ private:
 
     MonitorCallbacks m_cb;
     const SignalMonitorDef* m_table = nullptr;
-    SignalState m_states[MAX_SIGNAL_MONITORS];
+    SignalState* m_states = nullptr;
     float m_historyPool[MAX_SIGNAL_MONITORS][MAX_SIGNAL_HISTORY];  // 静态 history 池
     int m_count = 0;
     uint64_t m_lastTickMs = 0;

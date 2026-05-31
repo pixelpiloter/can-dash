@@ -3,6 +3,7 @@
 // 组合所有 Layer 2 Runtime，暴露 Q_PROPERTY 给 QML
 
 #include "dashboard_backend_qt.h"
+#include "layer2/language_manager.h"
 #include "../layer2/can_converter.h"
 #include "../layer2/alarm_runtime.h"
 #include "../layer2/seat_belt_runtime.h"
@@ -94,6 +95,10 @@ void DashboardBackend::init() {
     indicatorCb.user_data = this;
     m_indicatorRuntime = new IndicatorRuntime(indicatorCb);
     m_indicatorRuntime->init(INDICATOR_TABLE, INDICATOR_TABLE_COUNT);
+
+    // ─── 语言管理器 ───
+    m_langManager = new LanguageManager();
+    m_langManager->init(TRANSLATIONS, TRANSLATION_COUNT);
 
     // ─── Unix Socket 服务器 ───
     m_socketServer = new QLocalServer(this);
@@ -319,4 +324,25 @@ void DashboardBackend::set(const QString& key, const QVariant& value) {
     Q_UNUSED(key);
     Q_UNUSED(value);
     qWarning() << "DashboardBackend::set() called - this should not happen";
+}
+
+// ─── 多语言 ────────────────────────────────────────────────
+QString DashboardBackend::tr(const QString& key) const {
+    if (!m_langManager) return key;
+    const char* result = m_langManager->tr(key.toUtf8().constData());
+    return QString::fromUtf8(result);
+}
+
+void DashboardBackend::setLanguage(const QString& lang) {
+    Language newLang = (lang == "en_US") ? LANG_EN_US : LANG_ZH_CN;
+    if (m_langManager) {
+        m_langManager->setLanguage(newLang);
+        m_currentLanguage = lang;
+        emit languageChanged();
+    }
+}
+
+// ─── 指示灯查询 ───────────────────────────────────────────
+bool DashboardBackend::indicatorOn(const QString& key) const {
+    return m_indicatorStates.value(key).toMap().value("on", false).toBool();
 }

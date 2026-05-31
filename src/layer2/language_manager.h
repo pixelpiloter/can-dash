@@ -45,4 +45,6 @@ private:
 
 // 内置翻译表（由 yaml_to_c.py 从 JSON 生成，或手写常量数组）
 // 使用 _tr(key) 宏在 C 代码中访问
+extern const LanguageEntry TRANSLATIONS[];
+extern const int TRANSLATION_COUNT;
 #define _tr(key) LanguageManager::instance()->tr(key)

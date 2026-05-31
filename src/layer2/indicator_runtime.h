@@ -1,11 +1,10 @@
 // indicator_runtime.h
 // Layer 2: 指示灯运行时
-// 纯 C++，无 Qt
+// 纯 C++，无 Qt，无动态内存
 
 #pragma once
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include "../generated/indicator_def.h"
 struct IndicatorState {
     const IndicatorDef* def;
@@ -40,6 +39,8 @@ public:
 
 private:
     IndicatorState* findIndicator(const char* id);
+
+    static constexpr int MAX_INDICATORS = 32;
 
     IndicatorCallbacks m_cb;
     const IndicatorDef* m_table = nullptr;

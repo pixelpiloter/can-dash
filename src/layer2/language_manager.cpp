@@ -10,7 +10,7 @@
 // 翻译表（由 tools/i18n_extract.py 自动从 zh_CN.json/en_US.json 生成）
 // 格式: { "key", "zh_CN 文本", "en_US 文本" }
 // ============================================================
-static const LanguageEntry TRANSLATIONS[] = {
+const LanguageEntry TRANSLATIONS[] = {
     // --- unit ---
     { "unit.speed",          "km/h",   "km/h"   },
     { "unit.rpm",            "RPM",    "RPM"    },
@@ -56,7 +56,7 @@ static const LanguageEntry TRANSLATIONS[] = {
     { "seatbelt.empty",        "无人",        "EMPTY"      },
 };
 
-static const int TRANSLATION_COUNT = sizeof(TRANSLATIONS) / sizeof(TRANSLATIONS[0]);
+const int TRANSLATION_COUNT = sizeof(TRANSLATIONS) / sizeof(TRANSLATIONS[0]);
 
 // 元信息：每个语言的 locale 和 font family
 static const char* LOCALE_NAMES[LANG_COUNT] = { "zh_CN", "en_US" };
