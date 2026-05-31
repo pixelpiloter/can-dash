@@ -13,23 +13,32 @@
 class CanConverter;
 class AlarmRuntime;
 class SeatBeltRuntime;
+class IndicatorRuntime;
+class LanguageManager;
 
 class DashboardBackend : public QObject {
     Q_OBJECT
 
-    // ─── 报警状态（QML 绑定）───
+    // ─── 语言切换 ───
+    Q_PROPERTY(QString currentLanguage READ currentLanguage WRITE setLanguage NOTIFY languageChanged)
+    Q_PROPERTY(QString currentFont READ currentFont NOTIFY languageChanged)
+
+    // ─── 报警状态 ───
     Q_PROPERTY(bool alarmActive READ alarmActive NOTIFY alarmActiveChanged)
     Q_PROPERTY(QString alarmMessageZh READ alarmMessageZh NOTIFY alarmActiveChanged)
     Q_PROPERTY(QVariantList alarmList READ alarmList NOTIFY alarmActiveChanged)
 
-    // ─── 安全带状态（QML 绑定）───
+    // ─── 安全带状态 ───
     Q_PROPERTY(bool seatBeltWarningActive READ seatBeltWarningActive NOTIFY seatBeltWarningChanged)
     Q_PROPERTY(QString seatBeltMessage READ seatBeltMessage NOTIFY seatBeltWarningChanged)
     Q_PROPERTY(QVariantList seatIconStates READ seatIconStates NOTIFY seatIconStatesChanged)
     Q_PROPERTY(bool isMoving READ isMoving NOTIFY movingChanged)
 
-    // ─── 显示数据（QML 绑定）───
+    // ─── 显示数据 ───
     Q_PROPERTY(QVariantMap displayData READ displayData NOTIFY displayDataChanged)
+
+    // ─── 指示灯状态 ───
+    Q_PROPERTY(QVariantMap indicatorStates READ indicatorStates NOTIFY indicatorStatesChanged)
 
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
@@ -38,6 +47,10 @@ public:
     void init();
 
     // Qt 属性访问器
+    QString currentLanguage() const;
+    void setLanguage(const QString& lang);
+    QString currentFont() const;
+
     bool alarmActive() const { return m_alarmActive; }
     QString alarmMessageZh() const { return m_alarmMessageZh; }
     QVariantList alarmList() const { return m_alarmList; }
@@ -48,23 +61,30 @@ public:
     bool isMoving() const { return m_isMoving; }
 
     QVariantMap displayData() const { return m_displayData; }
+    QVariantMap indicatorStates() const { return m_indicatorStates; }
 
     // QML 暴露的通用查询接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
 
+    // 多语言翻译
+    Q_INVOKABLE QString tr(const QString& key) const;
+
+    // 指示灯控制（由 QML 或 CAN 数据调用）
+    Q_INVOKABLE void setIndicator(const QString& id, bool on, bool flash = false, float hz = 0.0f);
+    Q_INVOKABLE bool indicatorOn(const QString& id) const;
+
 signals:
+    void languageChanged();
     void alarmActiveChanged();
     void seatBeltWarningChanged();
     void seatIconStatesChanged();
     void movingChanged();
     void displayDataChanged();
+    void indicatorStatesChanged();
 
 public slots:
-    // 接收 CAN 帧（来自 CanReceiverQt）
     void onCanFrameReceived(quint32 canId, const QByteArray& data);
-
-    // 定时更新
     void onTick();
 
 private:
@@ -72,12 +92,15 @@ private:
     void startSocketServer();
     void onSocketReadyRead();
 
-    // Layer 2 运行时（纯 C++）
-    CanConverter*    m_converter = nullptr;
-    AlarmRuntime*   m_alarmRuntime = nullptr;
-    SeatBeltRuntime* m_seatBeltRuntime = nullptr;
+    // Layer 2 运行时
+    CanConverter*       m_converter    = nullptr;
+    AlarmRuntime*       m_alarmRuntime = nullptr;
+    SeatBeltRuntime*    m_seatBeltRuntime = nullptr;
+    IndicatorRuntime*    m_indicatorRuntime = nullptr;
+    LanguageManager*     m_langManager  = nullptr;
 
     // 状态
+    QString m_currentLang = "zh_CN";
     bool m_alarmActive = false;
     QString m_alarmMessageZh;
     QVariantList m_alarmList;
@@ -88,9 +111,10 @@ private:
 
     bool m_isMoving = false;
     QVariantMap m_displayData;
+    QVariantMap m_indicatorStates;  // id → { on, flash, flashHz }
 
     QTimer* m_tickTimer = nullptr;
     QLocalServer* m_socketServer = nullptr;
     QLocalSocket* m_socketConnection = nullptr;
-    QByteArray m_rxBuffer;  // 跨 readyRead 调用的解析缓冲
+    QByteArray m_rxBuffer;
 };

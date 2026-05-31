@@ -1,0 +1,79 @@
+{
+    "_meta": {
+        "language": "zh_CN",
+        "name": "简体中文",
+        "font_family": "Noto Sans SC, Microsoft YaHei, sans-serif"
+    },
+    "app": {
+        "title": "新能源汽车仪表盘",
+        "version": "版本"
+    },
+    "unit": {
+        "speed": "km/h",
+        "rpm": "RPM",
+        "voltage": "V",
+        "current": "A",
+        "temperature": "°C",
+        "soc": "%"
+    },
+    "status": {
+        "driving": "行驶中",
+        "parked": "停车",
+        "standby": "待机",
+        "normal": "正常",
+        "fault": "故障"
+    },
+    "battery": {
+        "voltage": "电池电压",
+        "soc": "电量",
+        "current": "电流"
+    },
+    "motor": {
+        "rpm": "电机转速",
+        "temperature": "电机温度"
+    },
+    "seatbelt": {
+        "driver": "主驾",
+        "passenger": "副驾",
+        "rear_left": "后左",
+        "rear_center": "后中",
+        "rear_right": "后右",
+        "please_buckle": "请系安全带",
+        "buckled": "已系",
+        "unbuckled": "未系",
+        "empty": "无人"
+    },
+    "indicator": {
+        "left_turn": "左转向",
+        "right_turn": "右转向",
+        "high_beam": "远光灯",
+        "check_engine": "发动机故障",
+        "fog_light": "雾灯",
+        "reverse": "倒车",
+        "park_brake": "驻车制动",
+        "tire_pressure": "胎压报警",
+        "ready": "READY",
+        "high_voltage": "高压"
+    },
+    "alarm": {
+        "system_normal": "系统正常",
+        "battery_overvolt": "电池过压",
+        "battery_undervolt": "电池欠压",
+        "battery_low": "电量低，请充电",
+        "motor_overtemp": "电机温度异常",
+        "overspeed": "超速行驶",
+        "brake_fault": "制动系统故障",
+        "door_open": "车门未关",
+        "tire_pressure_warn": "胎压异常"
+    },
+    "alarm_text": {
+        "bat_overvolt": "电池过压！",
+        "bat_undervolt": "电池欠压！",
+        "bat_soc_low": "电量低，请充电",
+        "motor_overtemp": "电机温度异常！",
+        "overspeed": "超速！请减速",
+        "brake_fault": "制动系统故障！",
+        "door_open": "车门未关！",
+        "tire_pressure_warn": "胎压异常！"
+    }
+}

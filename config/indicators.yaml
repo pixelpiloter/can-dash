@@ -1,37 +1,82 @@
 # 指示灯定义
 indicators:
+  # ─── 告警类 ───
   - id: "bat_warn_light"
     type: "light"
-    image_on: "warning_bat_red.png"
-    image_off: "warning_bat_dim.png"
-    size: { width: 60, height: 60 }
-    position: { x: 600, y: 260 }
+    color: "#FF2200"
     flash_on_fault: true
+    position: { x: 600, y: 260 }
 
   - id: "soc_warn_light"
     type: "light"
-    image_on: "warning_soc_orange.png"
-    image_off: "warning_soc_dim.png"
-    size: { width: 60, height: 60 }
+    color: "#FFAA00"
+    flash_on_fault: true
     position: { x: 660, y: 260 }
 
   - id: "motor_warn_light"
     type: "light"
-    image_on: "warning_motor_red.png"
-    image_off: "warning_motor_dim.png"
-    size: { width: 60, height: 60 }
+    color: "#FF2200"
+    flash_on_fault: true
     position: { x: 720, y: 260 }
 
+  # ─── 状态类 ───
   - id: "ready_go_light"
     type: "light"
-    image_on: "ready_go_green.png"
-    image_off: "ready_go_dim.png"
-    size: { width: 60, height: 60 }
+    color: "#00FF88"
+    flash_on_fault: false
     position: { x: 780, y: 260 }
 
   - id: "high_voltage_light"
     type: "light"
-    image_on: "hv_orange.png"
-    image_off: "hv_dim.png"
-    size: { width: 50, height: 50 }
-    position: { x: 20, y: 20 }
+    color: "#FFAA00"
+    flash_on_fault: false
+    position: { x: 840, y: 260 }
+
+  # ─── 信号类（转向/灯光）───
+  - id: "left_turn_light"
+    type: "signal"
+    color: "#FFAA00"
+    flash_on_fault: false
+    position: { x: 50, y: 500 }
+
+  - id: "right_turn_light"
+    type: "signal"
+    color: "#FFAA00"
+    flash_on_fault: false
+    position: { x: 1850, y: 500 }
+
+  - id: "high_beam_light"
+    type: "light"
+    color: "#00AAFF"
+    flash_on_fault: false
+    position: { x: 900, y: 260 }
+
+  - id: "check_engine_light"
+    type: "light"
+    color: "#FFAA00"
+    flash_on_fault: true
+    position: { x: 950, y: 260 }
+
+  - id: "fog_light"
+    type: "light"
+    color: "#FFAA00"
+    flash_on_fault: false
+    position: { x: 1000, y: 260 }
+
+  - id: "reverse_light"
+    type: "light"
+    color: "#FFFFFF"
+    flash_on_fault: false
+    position: { x: 1050, y: 260 }
+
+  - id: "park_brake_light"
+    type: "light"
+    color: "#FF2200"
+    flash_on_fault: true
+    position: { x: 1100, y: 260 }
+
+  - id: "tire_pressure_light"
+    type: "light"
+    color: "#FFAA00"
+    flash_on_fault: true
+    position: { x: 1150, y: 260 }

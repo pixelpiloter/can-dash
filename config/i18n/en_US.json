@@ -1,0 +1,79 @@
+{
+    "_meta": {
+        "language": "en_US",
+        "name": "English",
+        "font_family": "Roboto, Arial, sans-serif"
+    },
+    "app": {
+        "title": "EV Dashboard",
+        "version": "Version"
+    },
+    "unit": {
+        "speed": "km/h",
+        "rpm": "RPM",
+        "voltage": "V",
+        "current": "A",
+        "temperature": "°C",
+        "soc": "%"
+    },
+    "status": {
+        "driving": "Driving",
+        "parked": "Parked",
+        "standby": "Standby",
+        "normal": "Normal",
+        "fault": "Fault"
+    },
+    "battery": {
+        "voltage": "Battery Voltage",
+        "soc": "Battery",
+        "current": "Current"
+    },
+    "motor": {
+        "rpm": "Motor Speed",
+        "temperature": "Motor Temp"
+    },
+    "seatbelt": {
+        "driver": "DRIVER",
+        "passenger": "PASSENGER",
+        "rear_left": "REAR L",
+        "rear_center": "REAR C",
+        "rear_right": "REAR R",
+        "please_buckle": "please buckle up",
+        "buckled": "OK",
+        "unbuckled": "UNBUCKLED",
+        "empty": "EMPTY"
+    },
+    "indicator": {
+        "left_turn": "Left Turn",
+        "right_turn": "Right Turn",
+        "high_beam": "High Beam",
+        "check_engine": "Check Engine",
+        "fog_light": "Fog Light",
+        "reverse": "Reverse",
+        "park_brake": "Park Brake",
+        "tire_pressure": "Tire Pressure",
+        "ready": "READY",
+        "high_voltage": "High Voltage"
+    },
+    "alarm": {
+        "system_normal": "System Normal",
+        "battery_overvolt": "Battery Overvoltage",
+        "battery_undervolt": "Battery Undervoltage",
+        "battery_low": "Low Battery",
+        "motor_overtemp": "Motor Overtemp",
+        "overspeed": "Overspeed",
+        "brake_fault": "Brake Fault",
+        "door_open": "Door Open",
+        "tire_pressure_warn": "Tire Pressure Warning"
+    },
+    "alarm_text": {
+        "bat_overvolt": "BATTERY OVERVOLTAGE",
+        "bat_undervolt": "BATTERY UNDERVOLTAGE",
+        "bat_soc_low": "LOW BATTERY",
+        "motor_overtemp": "MOTOR OVERTEMP",
+        "overspeed": "OVERSPEED - SLOW DOWN",
+        "brake_fault": "BRAKE SYSTEM FAULT",
+        "door_open": "DOOR OPEN",
+        "tire_pressure_warn": "TIRE PRESSURE WARNING"
+    }
+}

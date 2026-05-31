@@ -24,11 +24,11 @@ int main() {
         .user_data = nullptr
     };
 
-    // 定义测试指示灯表
+    // 定义测试指示灯表（格式匹配 src/generated/indicator_def.h）
     static const IndicatorDef table[] = {
-        {"bat_warn_light",   "warning_bat_red.png",   "warning_bat_dim.png",  60, 60, 600, 260},
-        {"engine_warn_light","warning_engine.png",   "warning_engine_dim.png", 60, 60, 540, 260},
-        {"turn_left_light",  "turn_left.png",         "turn_left_dim.png",   40, 40, 200, 200},
+        {"bat_warn_light",   "light", "warning_bat_red.png",   "warning_bat_dim.png",   600, 260, 60, 60, true},
+        {"engine_warn_light","light", "warning_engine.png",   "warning_engine_dim.png", 540, 260, 60, 60, true},
+        {"turn_left_light",  "signal","turn_left.png",         "turn_left_dim.png",     200, 200, 40, 40, false},
     };
     const int table_count = 3;
 

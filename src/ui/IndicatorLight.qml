@@ -1,0 +1,258 @@
+// IndicatorLight.qml - 通用汽车指示灯（Canvas 绘制，支持多种符号）
+import QtQuick 2.15
+
+Item {
+    id: root
+
+    // 指示灯状态
+    property bool on: false
+    property bool flash: false
+    property real flashHz: 2.0   // Hz
+
+    // 符号类型: "turn_left" | "turn_right" | "high_beam" | "check_engine"
+    //            "fog" | "reverse" | "park" | "tire" | "ready" | "high_volt"
+    //            "bat" | "seatbelt"
+    property string symbol: "bat"
+
+    // 颜色（可按类型预设，也可在外部覆盖）
+    property color onColor: colorForSymbol(symbol)
+    property color offColor: offColorForSymbol(symbol)
+
+    width: 60
+    height: 60
+
+    // 闪烁时序
+    Timer {
+        id: flashTimer
+        interval: flash && on ? (500 / flashHz) : 100
+        running: flash && root.on
+        repeat: true
+        onTriggered: flashAnim.running = !flashAnim.running
+    }
+
+    SequentialAnimation {
+        id: flashAnim
+        running: false
+        NumberAnimation {
+            target: root; property: "flashPhase"
+            from: 0; to: 1; duration: 500 / flashHz
+            easing.type: Easing.InOutQuad
+        }
+    }
+
+    property real flashPhase: 1.0   // 0=亮, 1=暗
+    readonly property bool lit: on && (flash ? (flashPhase < 0.5) : true)
+
+    // ─── 颜色映射 ───
+    function colorForSymbol(sym) {
+        switch (sym) {
+            case "turn_left": case "turn_right":   return "#FFAA00"
+            case "high_beam":                      return "#00AAFF"
+            case "check_engine":                   return "#FFAA00"
+            case "fog":                            return "#FFAA00"
+            case "reverse":                        return "#FFFFFF"
+            case "park":                           return "#FF2200"
+            case "tire":                           return "#FFAA00"
+            case "ready":                          return "#00FF88"
+            case "high_volt":                      return "#FFAA00"
+            case "bat":                            return "#FF2200"
+            default:                               return "#FF2200"
+        }
+    }
+
+    function offColorForSymbol(sym) {
+        switch (sym) {
+            case "turn_left": case "turn_right":   return "#3a2800"
+            case "high_beam":                      return "#001a33"
+            case "check_engine":                   return "#332800"
+            case "fog":                            return "#1a1a1a"
+            case "reverse":                        return "#222222"
+            case "park":                           return "#330011"
+            case "tire":                           return "#332800"
+            case "ready":                          return "#001a0d"
+            case "high_volt":                      return "#332800"
+            case "bat":                            return "#330011"
+            default:                               return "#330011"
+        }
+    }
+
+    Canvas {
+        id: canvas
+        anchors.fill: parent
+        antialiasing: true
+
+        onPaint: {
+            var ctx = getContext("2d")
+            var cx = width / 2
+            var cy = height / 2
+            var r = Math.min(cx, cy) - 3
+
+            ctx.clearRect(0, 0, width, height)
+
+            var col  = lit ? root.onColor   : root.offColor
+            var alpha = lit ? 1.0 : 0.55
+
+            // 外圈发光
+            if (lit) {
+                var glow = ctx.createRadialGradient(cx, cy, r * 0.7, cx, cy, r * 1.3)
+                glow.addColorStop(0, "rgba(" + _hex(col) + ",0.3)")
+                glow.addColorStop(1, "rgba(0,0,0,0)")
+                ctx.beginPath()
+                ctx.arc(cx, cy, r * 1.3, 0, 2 * Math.PI)
+                ctx.fillStyle = glow
+                ctx.fill()
+            }
+
+            // 金属边框
+            var metalGrad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r)
+            metalGrad.addColorStop(0, "#555555")
+            metalGrad.addColorStop(0.3, "#2a2a2a")
+            metalGrad.addColorStop(0.7, "#1a1a1a")
+            metalGrad.addColorStop(1, "#404040")
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, 0, 2 * Math.PI)
+            ctx.fillStyle = metalGrad
+            ctx.fill()
+
+            // 镜头玻璃
+            var lensGrad = ctx.createRadialGradient(cx - r*0.15, cy - r*0.15, 0, cx, cy, r * 0.88)
+            if (lit) {
+                lensGrad.addColorStop(0, "rgba(" + _hex(col) + "," + Math.min(1,alpha+0.3) + ")")
+                lensGrad.addColorStop(0.6, "rgba(" + _hex(col) + "," + alpha + ")")
+                lensGrad.addColorStop(1, "rgba(" + _hex(col) + "," + Math.max(0.3,alpha-0.2) + ")")
+            } else {
+                lensGrad.addColorStop(0, "rgba(50,50,50,0.8)")
+                lensGrad.addColorStop(1, "rgba(20,20,20,0.8)")
+            }
+            ctx.beginPath()
+            ctx.arc(cx, cy, r * 0.88, 0, 2 * Math.PI)
+            ctx.fillStyle = lensGrad
+            ctx.fill()
+
+            // 画符号
+            ctx.fillStyle = lit ? "rgba(255,255,255,0.95)" : "rgba(120,120,120,0.7)"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            if (lit) {
+                ctx.shadowColor = "rgba(" + _hex(col) + ",0.8)"
+                ctx.shadowBlur = 6
+            }
+            _drawSymbol(ctx, cx, cy, r * 0.65, symbol)
+            ctx.shadowBlur = 0
+        }
+
+        // 辅助：将 Qt color 转成 "r,g,b" 字符串
+        function _hex(c) {
+            return Math.round(c.r * 255) + "," + Math.round(c.g * 255) + "," + Math.round(c.b * 255)
+        }
+
+        // 画符号
+        function _drawSymbol(ctx, cx, cy, size, sym) {
+            switch (sym) {
+                case "turn_left":
+                    // 左箭头
+                    ctx.beginPath()
+                    ctx.moveTo(cx + size * 0.5, cy)
+                    ctx.lineTo(cx - size * 0.2, cy - size * 0.5)
+                    ctx.lineTo(cx - size * 0.2, cy - size * 0.15)
+                    ctx.lineTo(cx - size * 0.5, cy - size * 0.15)
+                    ctx.lineTo(cx - size * 0.5, cy + size * 0.15)
+                    ctx.lineTo(cx - size * 0.2, cy + size * 0.15)
+                    ctx.lineTo(cx - size * 0.2, cy + size * 0.5)
+                    ctx.closePath()
+                    ctx.fill()
+                    break
+                case "turn_right":
+                    // 右箭头（镜像）
+                    ctx.beginPath()
+                    ctx.moveTo(cx - size * 0.5, cy)
+                    ctx.lineTo(cx + size * 0.2, cy - size * 0.5)
+                    ctx.lineTo(cx + size * 0.2, cy - size * 0.15)
+                    ctx.lineTo(cx + size * 0.5, cy - size * 0.15)
+                    ctx.lineTo(cx + size * 0.5, cy + size * 0.15)
+                    ctx.lineTo(cx + size * 0.2, cy + size * 0.15)
+                    ctx.lineTo(cx + size * 0.2, cy + size * 0.5)
+                    ctx.closePath()
+                    ctx.fill()
+                    break
+                case "high_beam":
+                    // 远光灯：三道光束
+                    ctx.beginPath()
+                    ctx.moveTo(cx - size * 0.4, cy + size * 0.5)
+                    ctx.lineTo(cx - size * 0.1, cy + size * 0.1)
+                    ctx.lineTo(cx - size * 0.25, cy + size * 0.1)
+                    ctx.lineTo(cx + size * 0.25, cy - size * 0.5)
+                    ctx.lineTo(cx + size * 0.1, cy - size * 0.1)
+                    ctx.lineTo(cx + size * 0.25, cy - size * 0.1)
+                    ctx.closePath()
+                    ctx.fill()
+                    break
+                case "check_engine":
+                    // 发动机：简单梯形+曲轴
+                    ctx.font = "bold " + Math.round(size * 1.3) + "px sans-serif"
+                    ctx.fillText("⚙", cx, cy + 1)
+                    break
+                case "fog":
+                    // 雾灯：三层波浪线
+                    for (var i = 0; i < 3; i++) {
+                        ctx.beginPath()
+                        var yoff = (i - 1) * size * 0.35
+                        ctx.moveTo(cx - size * 0.5, cy + yoff)
+                        ctx.quadraticCurveTo(cx - size * 0.25, cy + yoff - size * 0.2,
+                                              cx, cy + yoff)
+                        ctx.quadraticCurveTo(cx + size * 0.25, cy + yoff + size * 0.2,
+                                              cx + size * 0.5, cy + yoff)
+                        ctx.lineWidth = size * 0.12
+                        ctx.strokeStyle = ctx.fillStyle
+                        ctx.stroke()
+                    }
+                    break
+                case "reverse":
+                    // 倒车档：R
+                    ctx.font = "bold " + Math.round(size * 1.4) + "px sans-serif"
+                    ctx.fillText("R", cx, cy + 1)
+                    break
+                case "park":
+                    // 驻车制动：P
+                    ctx.font = "bold " + Math.round(size * 1.4) + "px sans-serif"
+                    ctx.fillText("P", cx, cy + 1)
+                    break
+                case "tire":
+                    // 胎压：感叹号
+                    ctx.font = "bold " + Math.round(size * 1.5) + "px sans-serif"
+                    ctx.fillText("!", cx, cy + 1)
+                    break
+                case "ready":
+                    // READY 文字
+                    ctx.font = "bold " + Math.round(size * 0.55) + "px sans-serif"
+                    ctx.fillText("RDY", cx, cy + 1)
+                    break
+                case "high_volt":
+                    // 高压：闪电符号
+                    ctx.beginPath()
+                    ctx.moveTo(cx - size * 0.1, cy - size * 0.5)
+                    ctx.lineTo(cx + size * 0.3, cy - size * 0.05)
+                    ctx.lineTo(cx - size * 0.05, cy - size * 0.05)
+                    ctx.lineTo(cx + size * 0.15, cy + size * 0.5)
+                    ctx.lineTo(cx - size * 0.2, cy + size * 0.05)
+                    ctx.lineTo(cx + size * 0.15, cy + size * 0.05)
+                    ctx.closePath()
+                    ctx.fill()
+                    break
+                case "bat":
+                    // 电池：默认感叹号
+                    ctx.font = "bold " + Math.round(size * 1.5) + "px sans-serif"
+                    ctx.fillText("!", cx, cy + 1)
+                    break
+                default:
+                    ctx.font = "bold " + Math.round(size * 1.5) + "px sans-serif"
+                    ctx.fillText("!", cx, cy + 1)
+                    break
+            }
+        }
+    }
+
+    onOnChanged: canvas.requestPaint()
+    onSymbolChanged: canvas.requestPaint()
+    Component.onCompleted: canvas.requestPaint()
+}

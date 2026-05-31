@@ -9,16 +9,16 @@ ApplicationWindow {
     width: 1920
     height: 720
     visible: true
-    title: "CAN-Dash 1920x720"
+    title: dashboard.tr("app.title")
     color: "#000000"
 
-    // ---- 平滑滤波状态 ----
+    // ─── 平滑滤波状态 ───
     property real rawSpeed: 0
     property real rawRpm: 0
     property real displaySpeed: 0
     property real displayRpm: 0
 
-    // ---- 20ms 定时器：积分更新显示值（独立于 CAN 帧）----
+    // ─── 20ms 定时器：积分更新显示值 ───
     Timer {
         id: displayTimer
         interval: 20
@@ -33,27 +33,79 @@ ApplicationWindow {
         }
     }
 
-    // ---- 监听 CAN 数据：只更新原始值 ----
+    // ─── 监听 CAN 数据 ───
     Connections {
         target: dashboard
         function onDisplayDataChanged() {
             var dd = dashboard.displayData
-            var keys = []
-            for (var k in dd) keys.push(k)
             rawSpeed = dd["vehicle_speed"] || 0
             rawRpm = dd["motor_rpm"] !== undefined ? dd["motor_rpm"] : 0
+
             var v = Math.round((dd["bat_volt"] || 0) * 10) / 10
             var soc = Math.round(dd["bat_soc"] || 0)
-            console.log("QML: spd=" + rawSpeed + " rpm=" + rawRpm + " v=" + v + " soc=" + soc + " keys=" + keys.join("+"))
-            batVoltText.text = v.toFixed(1) + " V"
+            var temp = dd["motor_temp"] !== undefined ? dd["motor_temp"] : 0
+
+            batVoltText.text = v.toFixed(1) + " " + dashboard.tr("unit.voltage")
             batVoltText.color = v > 14.0 ? "#00FF88" : v > 12.0 ? "#FFAA00" : "#FF4400"
+
             socBar.width = batPanel.width * (soc / 100)
             socBar.color = soc < 20 ? "#FF2200" : "#00FF88"
-            socText.text = "SOC " + soc + "%"
+            socText.text = dashboard.tr("battery.soc") + " " + soc + dashboard.tr("unit.soc")
+
+            motorTempText.text = temp + dashboard.tr("unit.temperature")
+
+            // 驱动新的指示灯（示例：停车时驻车制动灯亮）
+            dashboard.setIndicator("park_brake_light", !dashboard.isMoving)
+            // 示例：速度>0时 READY 灯亮
+            dashboard.setIndicator("ready_go_light", dashboard.isMoving)
         }
     }
 
-    // ---- 背景 ----
+    // ─── 语言切换 ───
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 10
+        width: langSelector.width + 10
+        height: 36
+        color: "#AA000000"
+        radius: 6
+
+        Row {
+            id: langSelector
+            anchors.centerIn: parent
+            spacing: 6
+
+            Rectangle {
+                width: 50; height: 26
+                radius: 4
+                color: dashboard.currentLanguage === "zh_CN" ? "#33550000" : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "中文"
+                    color: dashboard.currentLanguage === "zh_CN" ? "#FFAA00" : "#888888"
+                    font.pixelSize: 13
+                    font.weight: dashboard.currentLanguage === "zh_CN" ? Font.Bold : Font.Normal
+                }
+                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("zh_CN") }
+            }
+            Rectangle {
+                width: 50; height: 26
+                radius: 4
+                color: dashboard.currentLanguage === "en_US" ? "#33550000" : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "EN"
+                    color: dashboard.currentLanguage === "en_US" ? "#FFAA00" : "#888888"
+                    font.pixelSize: 13
+                    font.weight: dashboard.currentLanguage === "en_US" ? Font.Bold : Font.Normal
+                }
+                MouseArea { anchors.fill: parent; onClicked: dashboard.setLanguage("en_US") }
+            }
+        }
+    }
+
+    // ─── 背景 ───
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -65,46 +117,139 @@ ApplicationWindow {
         }
     }
 
-    // ---- 顶部警告灯条 ----
+    // ─── 顶部指示灯条 ───
     Rectangle {
-        id: warningBar
+        id: indicatorBar
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 50
+        height: 80
         color: "#CC000000"
 
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 30
+            spacing: 14
 
-            WarningLight {
-                id: batWarn
-                width: 50; height: 50
-                active: dashboard.alarmActive
-                warnType: "bat"
+            // 左转向灯
+            IndicatorLight {
+                id: leftTurnLight
+                width: 55; height: 55
+                symbol: "turn_left"
+                on: dashboard.indicatorOn("left_turn_light")
+                flash: true
+                flashHz: 1.5
             }
-            WarningLight {
-                id: seatWarn
-                width: 50; height: 50
-                active: dashboard.seatIconStates.some(function(s){return s.warning})
-                warnType: "seatbelt"
+
+            // 右转向灯
+            IndicatorLight {
+                id: rightTurnLight
+                width: 55; height: 55
+                symbol: "turn_right"
+                on: dashboard.indicatorOn("right_turn_light")
+                flash: true
+                flashHz: 1.5
+            }
+
+            Rectangle { width: 2; height: 50; color: "#333333" }
+
+            // 电池告警灯
+            IndicatorLight {
+                id: batWarnLight
+                width: 55; height: 55
+                symbol: "bat"
+                on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("压") >= 0
+                flash: true
+                flashHz: 2
+            }
+
+            // 驻车制动灯
+            IndicatorLight {
+                id: parkBrakeLight
+                width: 55; height: 55
+                symbol: "park"
+                on: dashboard.indicatorOn("park_brake_light")
+                flash: false
+            }
+
+            // READY 灯
+            IndicatorLight {
+                id: readyLight
+                width: 55; height: 55
+                symbol: "ready"
+                on: dashboard.indicatorOn("ready_go_light")
+                flash: false
+            }
+
+            // 胎压灯
+            IndicatorLight {
+                id: tireLight
+                width: 55; height: 55
+                symbol: "tire"
+                on: dashboard.alarmActive && dashboard.alarmMessageZh.indexOf("胎压") >= 0
+                flash: true
+                flashHz: 2
+            }
+
+            // 发动机故障灯
+            IndicatorLight {
+                id: engineLight
+                width: 55; height: 55
+                symbol: "check_engine"
+                on: dashboard.indicatorOn("check_engine_light")
+                flash: true
+                flashHz: 1
+            }
+
+            // 高压灯
+            IndicatorLight {
+                id: highVoltLight
+                width: 55; height: 55
+                symbol: "high_volt"
+                on: dashboard.indicatorOn("high_voltage_light")
+                flash: false
+            }
+
+            // 雾灯
+            IndicatorLight {
+                id: fogLight
+                width: 55; height: 55
+                symbol: "fog"
+                on: dashboard.indicatorOn("fog_light")
+                flash: false
             }
         }
     }
 
-    // ===== 左侧：转速表 (RPM) =====
+    // ─── 报警横幅 ───
+    Rectangle {
+        id: alarmBanner
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 88
+        visible: dashboard.alarmActive
+        width: 620; height: 60
+        color: "#DD000000"
+        radius: 8
+        border.color: "#FF4400"
+        border.width: 2
+
+        Text {
+            anchors.centerIn: parent
+            text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : ""
+            color: "#FF4400"
+            font.pixelSize: 30
+            font.weight: Font.Bold
+        }
+    }
+
+    // ─── 左侧：转速表 ───
     GaugeCanvas {
         id: rpmGauge
-        x: 60
-        y: 180
-        width: 380
-        height: 380
-        minValue: 0
-        maxValue: 8000
+        x: 60; y: 180
+        width: 380; height: 380
+        minValue: 0; maxValue: 8000
         value: 0
-        unit: "RPM"
+        unit: dashboard.tr("unit.rpm")
         dialColor: "#1a3a5c"
         needleColor: "#00AAFF"
         labelColor: "#88CCFF"
@@ -114,18 +259,16 @@ ApplicationWindow {
         endAngleDeg: 405
     }
 
-    // ===== 中央：车速表 =====
+    // ─── 中央：车速表 ───
     GaugeCanvas {
         id: speedGauge
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
         y: -30
-        width: 580
-        height: 580
-        minValue: 0
-        maxValue: 260
+        width: 580; height: 580
+        minValue: 0; maxValue: 260
         value: 0
-        unit: "km/h"
+        unit: dashboard.tr("unit.speed")
         dialColor: "#1a2a1a"
         needleColor: "#00FF88"
         labelColor: "#88FF88"
@@ -135,13 +278,12 @@ ApplicationWindow {
         endAngleDeg: 405
     }
 
-    // ===== 右侧：电池 + SOC + 行驶状态 + 安全带 =====
+    // ─── 右侧：电池 + SOC + 行驶状态 + 安全带 ───
     Column {
-        x: 1420
-        y: 180
+        x: 1420; y: 180
         spacing: 16
 
-        // 电池电压大字
+        // 电池电压
         Rectangle {
             width: 220; height: 70
             color: "#1a1a1a"
@@ -154,9 +296,9 @@ ApplicationWindow {
                 anchors.centerIn: parent
                 text: (dashboard.displayData["bat_volt"] || 0).toFixed(1) + " V"
                 color: "#00FF88"
-                font.pixelSize: 32
+                font.pixelSize: 30
                 font.weight: Font.Bold
-                font.family: "Roboto Mono, monospace"
+                font.family: dashboard.currentFont
             }
         }
 
@@ -170,9 +312,7 @@ ApplicationWindow {
 
             Rectangle {
                 id: socBar
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
+                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                 width: parent.width * ((dashboard.displayData["bat_soc"] || 0) / 100)
                 radius: 6
                 color: "#00FF88"
@@ -199,17 +339,41 @@ ApplicationWindow {
             Column {
                 anchors.centerIn: parent
                 Text {
-                    text: dashboard.isMoving ? "行驶中" : "停车"
+                    text: dashboard.isMoving
+                        ? dashboard.tr("status.driving")
+                        : dashboard.tr("status.parked")
                     color: dashboard.isMoving ? "#00FF88" : "#666666"
                     font.pixelSize: 22
                     font.weight: Font.Bold
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
-                    text: dashboard.isMoving ? "⚡ 正常" : "◇ 待机"
+                    text: dashboard.isMoving
+                        ? (dashboard.tr("status.normal") + " ⚡")
+                        : dashboard.tr("status.standby") + " ◇"
                     color: "#888888"
                     font.pixelSize: 13
                     anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+
+        // 电机温度
+        Rectangle {
+            width: 220; height: 60
+            color: "#1a1a1a"
+            radius: 8
+            border.color: "#333333"
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    id: motorTempText
+                    text: (dashboard.displayData["motor_temp"] || 0) + dashboard.tr("unit.temperature")
+                    color: "#FFAA00"
+                    font.pixelSize: 24
+                    font.weight: Font.Bold
                 }
             }
         }
@@ -274,7 +438,7 @@ ApplicationWindow {
         }
     }
 
-    // ===== 底部状态栏 =====
+    // ─── 底部状态栏 ───
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -291,7 +455,7 @@ ApplicationWindow {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "⏱ " + Qt.application.applicationVersion
+                text: "⏱ " + dashboard.tr("app.version") + " 1.0"
                 color: "#666666"
                 font.pixelSize: 14
             }
@@ -309,32 +473,13 @@ ApplicationWindow {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: dashboard.alarmActive ? ("⚠ " + dashboard.alarmMessageZh) : "系统正常"
+                text: dashboard.alarmActive
+                    ? ("⚠ " + dashboard.alarmMessageZh)
+                    : dashboard.tr("alarm.system_normal")
                 color: dashboard.alarmActive ? "#FF4400" : "#00AA44"
                 font.pixelSize: 16
                 font.weight: Font.Bold
             }
-        }
-    }
-
-    // ===== 报警横幅 =====
-    Rectangle {
-        id: alarmBanner
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 60
-        visible: dashboard.alarmActive
-        width: 600; height: 60
-        color: "#CC000000"
-        radius: 8
-        border.color: "#FF4400"
-        border.width: 2
-
-        Text {
-            anchors.centerIn: parent
-            text: dashboard.alarmMessageZh
-            color: "#FF4400"
-            font.pixelSize: 28
-            font.weight: Font.Bold
         }
     }
 

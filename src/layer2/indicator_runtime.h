@@ -5,16 +5,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
-
-struct IndicatorDef {
-    const char* id;
-    const char* image_on;
-    const char* image_off;
-    int         width;
-    int         height;
-    int         x;
-    int         y;
-};
+#include "../generated/indicator_def.h"
 
 struct IndicatorState {
     const IndicatorDef* def;
@@ -35,7 +26,7 @@ public:
 
     void init(const IndicatorDef* table, int table_count);
 
-    // 由 AlarmRuntime 调用，更新某个 widget 的状态
+    // 更新某个 widget 的状态
     void setIndicator(const char* widget_id, bool on, bool flash, float hz);
 
     // 定时调用（驱动闪烁时序）
@@ -44,8 +35,6 @@ public:
     // 查询
     int activeCount() const;
     bool isOn(const char* id) const;
-
-    const char* name() const { return "IndicatorRuntime"; }
 
 private:
     IndicatorState* findIndicator(const char* id);
