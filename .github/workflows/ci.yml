@@ -26,13 +26,15 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake .. -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON 2>&1 || true
-          # 即使 Qt6 找不到，也尝试编译 layer2 C++ 代码
-          cmake --build . --target test_can_converter test_alarm_runtime test_seat_belt_runtime test_event_bus test_vehicle_logic test_indicator_runtime test_can_signal_monitor -j$(nproc) 2>&1 || {
-            echo "=== CMake-only UT build failed, checking logs ==="
-            cat CMakeFiles/CMakeOutput.log 2>/dev/null | tail -20
-            exit 1
-          }
+          cmake .. -DQT6_BUILD=OFF 2>&1 | tee cmake_output.txt
+          if cmake .. -DQT6_BUILD=OFF 2>&1 | grep -q "Could not find"; then
+            echo "Qt6 not found (expected), building C++ only targets..."
+          fi
+
+      - name: Build C++ unit tests
+        run: |
+          cd build
+          cmake --build . --target test_can_converter test_alarm_runtime test_seat_belt_runtime test_event_bus test_vehicle_logic test_indicator_runtime test_can_signal_monitor -j$(nproc) 2>&1
 
       - name: Run C++ unit tests
         run: |

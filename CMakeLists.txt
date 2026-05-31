@@ -7,7 +7,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Qml Quick Svg)
+# Qt6 — 找不到时不 abort，只跳过 UI binary
+find_package(Qt6 COMPONENTS Core Qml Quick Svg)
+set(QT6_FOUND ${Qt6_FOUND})
 
 set(GENERATED_DIR ${CMAKE_SOURCE_DIR}/src/generated)
 set(LAYER1_DIR ${CMAKE_SOURCE_DIR}/src/layer1)
@@ -20,7 +22,6 @@ file(GLOB GENERATED_SOURCES CONFIGURE_DEPENDS
     ${GENERATED_DIR}/*.c
     ${GENERATED_DIR}/*.cpp
 )
-
 set_source_files_properties(${GENERATED_DIR}/*.c PROPERTIES LANGUAGE CXX)
 file(GLOB LAYER2_SOURCES CONFIGURE_DEPENDS ${LAYER2_DIR}/*.cpp ${LAYER2_DIR}/*.h)
 file(GLOB LAYER3_SOURCES CONFIGURE_DEPENDS ${LAYER3_DIR}/*.cpp)
@@ -40,28 +41,30 @@ if(Python3_Interpreter_FOUND)
     add_custom_target(run_yaml_to_c ALL DEPENDS ${GENERATED_DIR}/.generated_stamp)
 endif()
 
-# 复制 QML UI 文件到构建目录
-file(COPY ${UI_DIR}/ DESTINATION ${CMAKE_BINARY_DIR}/qml/)
-file(COPY ${UI_DIR}/images/ DESTINATION ${CMAKE_BINARY_DIR}/qml/images/)
+# 复制 QML UI 文件到构建目录（仅 Qt6 可用时）
+if(Qt6_FOUND)
+    file(COPY ${UI_DIR}/ DESTINATION ${CMAKE_BINARY_DIR}/qml/)
+    file(COPY ${UI_DIR}/images/ DESTINATION ${CMAKE_BINARY_DIR}/qml/images/)
 
-# 主应用
-add_executable(can-dash
-    src/main.cpp
-    ${LAYER2_SOURCES}
-    ${LAYER3_SOURCES}
-    ${GENERATED_SOURCES}
-)
-add_dependencies(can-dash run_yaml_to_c)
-
-target_include_directories(can-dash PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${GENERATED_DIR}
-    ${LAYER1_DIR}
-    ${LAYER2_DIR}
-    ${LAYER3_DIR}
-)
-
-target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg)
+    # 主应用
+    add_executable(can-dash
+        src/main.cpp
+        ${LAYER2_SOURCES}
+        ${LAYER3_SOURCES}
+        ${GENERATED_SOURCES}
+    )
+    add_dependencies(can-dash run_yaml_to_c)
+    target_include_directories(can-dash PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${GENERATED_DIR}
+        ${LAYER1_DIR}
+        ${LAYER2_DIR}
+        ${LAYER3_DIR}
+    )
+    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg)
+else()
+    message(STATUS "Qt6 not found — skipping can-dash UI binary (UT only)")
+endif()
 
 # 单元测试
 enable_testing()
