@@ -1,5 +1,5 @@
 // shm_display.cpp
-// 使用普通文件 + mmap（/tmp/can_display）
+// 使用 /dev/shm/can_display 路径 + 常规文件 open() + mmap
 #include "shm_display.h"
 #include <stdio.h>
 #include <string.h>

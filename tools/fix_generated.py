@@ -15,7 +15,9 @@ def fix_file(path):
     content = content.replace('}}', '}')
 
     # Fix 2: integer float suffixes like 420f -> 420.0f (C++ needs 420.0f)
-    content = re.sub(r'(?<!\.)(\d+)f\b', r'\1.0f', content)
+    # Use (?<![\d.]) to avoid matching digits that are part of an existing
+    # decimal number like 0.001f (which would become 0.001.0f otherwise).
+    content = re.sub(r'(?<![\d.])\d+f\b', lambda m: m.group(0).rstrip('f') + '.0f', content)
 
     # Fix 3: ACTION_ACTION_ -> ACTION_ (double prefix bug from yaml template)
     content = content.replace('ACTION_ACTION_', 'ACTION_')

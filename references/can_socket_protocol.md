@@ -1,12 +1,21 @@
 # CAN Socket 协议与帧解析
 
-## Unix Socket 通信架构
+## 通信架构
 
 ```
-can_sim/engine.py  ──TCP/Unix Socket──>  DashboardBackend  ──>  QML UI
-       (Python)                              (C++/Qt)
-                                           m_rxBuffer 状态机
+engine.py ──Unix Socket (SOCK_STREAM)──> can-processor
+                                            │
+                                            ▼
+                                      /dev/shm/can_display
+                                      (mmap 共享内存文件)
+                                            ▲
+                                            │
+                                      can-dash (读)
 ```
+
+- `engine.py` 连接 Unix Domain Socket `/tmp/can_processor_socket`
+- `can-processor` 接收 CAN 帧，解析后写入共享内存 `/dev/shm/can_display`
+- `can-dash` 通过 `shm_display.cpp` 从 `/dev/shm/can_display` 读取数据
 
 ## 帧格式
 
@@ -37,46 +46,39 @@ def send_frame(sock, can_id, data):
 
 注意：**不要**用 `<IB8s` padding 到 8 字节，这会导致 DLC=8 而非实际长度。
 
-## C++ 接收端（m_rxBuffer 状态机）
+## can_processor/main.cpp 帧解析
 
-```cpp
-void DashboardBackend::onSocketReadyRead() {
-    if (!m_socketConnection) return;
-    m_rxBuffer.append(m_socketConnection->readAll());  // 累积，不是替换
-
-    while (m_rxBuffer.size() >= 5) {  // 最小帧：4B ID + 1B DLC
-        uint32_t canId = *reinterpret_cast<const uint32_t*>(m_rxBuffer.constData());
-        uint8_t dlc = static_cast<uint8_t>(m_rxBuffer[4]);
-        int frameLen = 5 + dlc;
-
-        if (m_rxBuffer.size() < frameLen) break;  // 数据不足，等待
-
-        QByteArray frameData = m_rxBuffer.mid(5, dlc);
-        m_rxBuffer.remove(0, frameLen);  // 移除已消费数据
-
-        handleCanFrameData(frameData, canId);
-    }
-}
-```
-
-## can_converter.cpp 帧解析
-
-`processFrame()` 根据 `can_id` 查找字段定义，然后逐字段从 `frameData` 提取字节。
+`can-processor` 的 `processFrame()` 根据 `can_id` 查找字段定义，然后逐字段从 `frameData` 提取字节，写入 `DisplayData` 结构体后再同步到共享内存。
 
 关键约束：
 - `byte_start >= len` → 帧不够长，跳过
 - `byte_end >= len` → 帧不够长，跳过
 - 使用 `updatedMask` 位掩码记录哪些字段被更新
 
+## 共享内存布局
+
+`/dev/shm/can_display` 使用固定偏移量直接读写各字段：
+
+| 字段 | 类型 | 偏移 (bytes) |
+|------|------|-------------|
+| bat_volt | float | 0 |
+| bat_curr | float | 4 |
+| bat_soc | uint8_t | 8 |
+| vehicle_speed | float | 12 |
+| brake | uint8_t | 16 |
+| ... | | |
+
+详见 `src/layer1/shm/shm_display.h`
+
 ## 调试技巧
 
 ```bash
-# 确认连接 ESTAB
-ss --unix | grep can_dash
+# 确认 socket 监听
+ss --unix | grep can_processor
 
-# 打印 CAN 数据（每20帧）
-static int frame_count = 0;
-if (++frame_count % 20 == 0) {
-    qDebug() << "CAN: speed=" << m_displayData.value("vehicle_speed").toFloat();
-}
+# 确认共享内存文件存在
+ls -la /dev/shm/can_display
+
+# 以 human 身份读取（仅调试）
+xxd /dev/shm/can_display | head -4
 ```

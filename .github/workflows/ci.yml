@@ -1,0 +1,60 @@
+name: CI
+
+# ⚠️ CI 结果仅供参考，不影响发布决策
+# Qt 模块在 GitHub Actions 环境中会报错，build job 失败不代表代码有问题
+# 本项目 Qt GUI 需要本地桌面环境编译验证
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt6 (via Qt Online Installer)
+        uses: jurplel/qt6-git:1.2.0
+        with:
+          version: '6.7.0'
+          components: 'qtbase qtdeclarative qtquick3d qtquickcontrols2 qtgraphs qttools'
+          cache: true
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential cmake ninja-build \
+            libgl1-mesa-dev libxkbcommon-x11-dev libdbus-1-dev \
+            python3-pip python3-yaml python3-jsonschema python3-pydantic
+          pip3 install --quiet pyyaml jsonschema pydantic cantools python-can
+
+      - name: CMake configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}/lib/cmake"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Unit tests
+        run: |
+          cd build
+          ctest --output-on-failure -j$(nproc)
+
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: pip3 install --quiet pyyaml jsonschema pydantic cantools python-can
+      - name: Validate YAML
+        run: |
+          cd ${{ github.workspace }}
+          python3 tools/validate.py

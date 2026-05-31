@@ -35,3 +35,66 @@ indicators:
     image_off: "hv_dim.png"
     size: { width: 50, height: 50 }
     position: { x: 20, y: 20 }
+
+  - id: "engine_run_light"
+    type: "light"
+    image_on: "engine_run_white.png"
+    image_off: "engine_run_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 540, y: 260 }
+    color: "#FFFFFF"
+
+  - id: "ev_mode_light"
+    type: "light"
+    image_on: "ev_mode_green.png"
+    image_off: "ev_mode_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 200, y: 180 }
+    color: "#00FF00"
+
+  - id: "hybrid_mode_light"
+    type: "light"
+    image_on: "hybrid_mode_blue.png"
+    image_off: "hybrid_mode_dim.png"
+    size: { width: 60, height: 60 }
+    position: { x: 260, y: 180 }
+    color: "#0066FF"
+
+  - id: "energy_flow_light"
+    type: "light"
+    image_on: "energy_flow_active.png"
+    image_off: "energy_flow_inactive.png"
+    size: { width: 60, height: 60 }
+    position: { x: 320, y: 180 }
+    color: "#FFCC00"
+
+  - id: "charge_light"
+    type: "light"
+    image_on: "charge_blue.png"
+    image_off: "charge_blue_dim.png"
+    size: { width: 50, height: 50 }
+    position: { x: 400, y: 260 }
+
+  - id: "charge_fault_light"
+    type: "light"
+    image_on: "charge_fault_red.png"
+    image_off: "charge_fault_red_dim.png"
+    size: { width: 50, height: 50 }
+    position: { x: 450, y: 260 }
+    flash_on_fault: true
+
+  - id: "fuel_low_light"
+    type: "light"
+    image_on: "fuel_low_yellow.png"
+    image_off: "fuel_low_dim.png"
+    size: { width: 50, height: 50 }
+    position: { x: 600, y: 300 }
+    flash_on_fault: false
+
+  - id: "ev_range_warn_light"
+    type: "light"
+    image_on: "ev_range_warn_yellow.png"
+    image_off: "ev_range_warn_dim.png"
+    size: { width: 50, height: 50 }
+    position: { x: 660, y: 300 }
+    flash_on_fault: false

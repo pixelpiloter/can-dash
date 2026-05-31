@@ -56,6 +56,16 @@ display:
             image_on: "warning_bat_red.png"
             image_off: "warning_bat_dim.png"
 
+        - id: engine_warn
+          type: light
+          position: { x: 540, y: 260 }
+          bindings:
+            active: "alarm.engine_fault_alarm.active"
+            flash: "alarm.engine_fault_alarm.flash"
+          config:
+            image_on: "engine_run_red.png"
+            image_off: "engine_run_orange.png"
+
         - id: seat_belt_zone
           type: custom
           position: { x: 200, y: 380 }

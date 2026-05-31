@@ -24,6 +24,8 @@ file(GLOB GENERATED_SOURCES CONFIGURE_DEPENDS
 )
 set_source_files_properties(${GENERATED_DIR}/*.c PROPERTIES LANGUAGE CXX)
 file(GLOB LAYER2_SOURCES CONFIGURE_DEPENDS ${LAYER2_DIR}/*.cpp ${LAYER2_DIR}/*.h)
+# LanguageManager only — DashboardBackend only needs this from layer2
+set(LAYER2_LANGUAGE_SOURCES ${LAYER2_DIR}/language_manager.cpp)
 file(GLOB LAYER1_SOURCES CONFIGURE_DEPENDS ${LAYER1_DIR}/*.cpp ${LAYER1_DIR}/*.h ${LAYER1_DIR}/shm/*.cpp)
 file(GLOB LAYER3_SOURCES CONFIGURE_DEPENDS ${LAYER3_DIR}/*.cpp)
 
@@ -50,7 +52,7 @@ if(Qt6_FOUND)
     # 主应用
     add_executable(can-dash
         src/main.cpp
-        ${LAYER2_SOURCES}
+        ${LAYER2_LANGUAGE_SOURCES}
         ${LAYER1_SOURCES}
         ${LAYER3_SOURCES}
         ${GENERATED_SOURCES}

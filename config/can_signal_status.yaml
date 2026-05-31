@@ -38,3 +38,60 @@ signals:
     validity:
       min: -40
       max: 200
+
+  - name: "charge_status"
+    can_id: 0x306
+    timeout_ms: 1000
+    validity:
+      min: 0
+      max: 2
+
+  - name: "engine_rpm"
+    can_id: 0x305
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 8000
+      max_delta: 1000
+
+  - name: "engine_fault"
+    can_id: 0x305
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 1
+
+  - name: "ev_range"
+    can_id: 0x307
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 300
+
+  - name: "fuel_level"
+    can_id: 0x308
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 100
+
+  - name: "fuel_range"
+    can_id: 0x308
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 1000
+
+  - name: "gear_status"
+    can_id: 0x309
+    timeout_ms: 500
+    validity:
+      min: 0
+      max: 4
+
+  - name: "battery_temp"
+    can_id: 0x186040F3
+    timeout_ms: 500
+    validity:
+      min: -40
+      max: 85

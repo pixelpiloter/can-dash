@@ -28,6 +28,13 @@ can_sources:
         type: uint8
         unit: "%"
 
+      - name: "battery_temp"
+        byte: 5
+        bits: 8
+        type: int8
+        formula: "x - 40"
+        unit: "°C"
+
   - name: "VCPU"
     can_id: 0x203
     period_ms: 50
@@ -119,3 +126,107 @@ can_sources:
         type: uint8
         formula: "x"
         unit: ""
+
+  - name: "ENGINE"
+    can_id: 0x305
+    period_ms: 100
+    fields:
+      - name: "engine_rpm"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x"
+        unit: "rpm"
+
+      - name: "engine_fault"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "CHG_STATUS"
+    can_id: 0x306
+    period_ms: 100
+    fields:
+      - name: "charge_status"
+        byte: 0
+        bits: 2
+        type: uint8
+        formula: "x"
+        unit: ""
+
+      - name: "charge_fault"
+        byte: 0
+        bits: 1
+        type: uint8
+        formula: "x"
+        unit: ""
+
+  - name: "CHG_POWER"
+    can_id: 0x302
+    period_ms: 100
+    fields:
+      - name: "charge_power"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: float
+        formula: "x * 0.001"
+        unit: "kW"
+
+  - name: "ENERGY_MODE"
+    can_id: 0x300
+    period_ms: 100
+    fields:
+      - name: "energy_mode"
+        byte: 0
+        bits: 8
+        type: uint8
+        formula: "x"
+        unit: ""
+        # 0=EV, 1=HYBRID, 2=ENGINE_ONLY, 3=CHARGE_MODE
+
+  - name: "HYBRID_EV_RANGE"
+    can_id: 0x307
+    period_ms: 500
+    fields:
+      - name: "ev_range"
+        byte: [0, 1]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x"
+        unit: "km"
+
+  - name: "HYBRID_FUEL"
+    can_id: 0x308
+    period_ms: 500
+    fields:
+      - name: "fuel_level"
+        byte: 0
+        bits: 8
+        type: uint8
+        formula: "x"
+        unit: "%"
+
+      - name: "fuel_range"
+        byte: [1, 2]
+        bits: 16
+        endian: little
+        type: uint16
+        formula: "x"
+        unit: "km"
+
+  - name: "HYBRID_GEAR"
+    can_id: 0x309
+    period_ms: 200
+    fields:
+      - name: "gear_status"
+        byte: 0
+        bits: 8
+        type: uint8
+        formula: "x"
+        unit: ""
+        # 0=P, 1=R, 2=N, 3=D, 4=S

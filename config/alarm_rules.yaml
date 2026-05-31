@@ -50,6 +50,22 @@ alarm_rules:
         font_size: 28
         color: "#FFAA00"
 
+  - name: "soc_critical_low"
+    display_key: "bat_soc"
+    condition: "value < 8"
+    priority: "high"
+    duration_ms: 300
+    actions:
+      - type: "indicator_light"
+        widget: "soc_warn_light"
+        flash: true
+        flash_hz: 3
+      - type: "alarm_text"
+        text_zh: "电量严重不足，请立即充电！"
+        text_en: "CRITICAL: EXTREMELY LOW BATTERY"
+        font_size: 32
+        color: "#FF0000"
+
   - name: "motor_overtemp"
     display_key: "motor_temp"
     condition: "value > 120"
@@ -65,3 +81,178 @@ alarm_rules:
         text_en: "MOTOR OVERTEMP"
         font_size: 28
         color: "#FF4400"
+
+  - name: "ev_mode_active"
+    display_key: "energy_mode"
+    condition: "value == 0"
+    priority: "low"
+    duration_ms: 100
+    actions:
+      - type: "indicator_light"
+        widget: "ev_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "hybrid_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "engine_run_light"
+        flash: false
+
+  - name: "hybrid_mode_active"
+    display_key: "energy_mode"
+    condition: "value == 1"
+    priority: "low"
+    duration_ms: 100
+    actions:
+      - type: "indicator_light"
+        widget: "ev_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "hybrid_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "engine_run_light"
+        flash: false
+
+  - name: "engine_boost_active"
+    display_key: "energy_mode"
+    condition: "value == 2"
+    priority: "low"
+    duration_ms: 100
+    actions:
+      - type: "indicator_light"
+        widget: "ev_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "hybrid_mode_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "engine_run_light"
+        flash: false
+      - type: "indicator_light"
+        widget: "energy_flow_light"
+        flash: false
+
+  - name: "charge_mode_active"
+    display_key: "energy_mode"
+    condition: "value == 3"
+    priority: "low"
+    duration_ms: 100
+    actions:
+      - type: "indicator_light"
+        widget: "energy_flow_light"
+        flash: true
+        flash_hz: 2
+
+  - name: "engine_fault_alarm"
+    display_key: "engine_fault"
+    condition: "value == 1"
+    priority: "high"
+    duration_ms: 200
+    actions:
+      - type: "indicator_light"
+        widget: "engine_run_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "发动机故障！"
+        text_en: "ENGINE FAULT"
+        font_size: 32
+        color: "#FF4400"
+
+  - name: "charge_fault_alarm"
+    display_key: "charge_fault"
+    condition: "value == 1"
+    priority: "high"
+    duration_ms: 500
+    actions:
+      - type: "indicator_light"
+        widget: "charge_fault_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "充电异常！"
+        text_en: "CHARGE FAULT"
+        font_size: 28
+        color: "#FF0000"
+
+  # HYBRID-001 混动专用报警规则
+  - name: "fuel_low"
+    display_key: "fuel_level"
+    condition: "value < 15"
+    priority: "medium"
+    duration_ms: 500
+    actions:
+      - type: "indicator_light"
+        widget: "fuel_low_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "燃油量低，请及时加油"
+        text_en: "LOW FUEL"
+        font_size: 28
+        color: "#FFAA00"
+
+  - name: "fuel_critical"
+    display_key: "fuel_level"
+    condition: "value < 5"
+    priority: "high"
+    duration_ms: 300
+    actions:
+      - type: "indicator_light"
+        widget: "fuel_low_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "燃油量严重不足！"
+        text_en: "CRITICAL: LOW FUEL"
+        font_size: 32
+        color: "#FF4400"
+
+  - name: "ev_range_low"
+    display_key: "ev_range"
+    condition: "value < 5"
+    priority: "medium"
+    duration_ms: 1000
+    actions:
+      - type: "indicator_light"
+        widget: "ev_range_warn_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "纯电续航不足，请切换混动模式"
+        text_en: "LOW EV RANGE"
+        font_size: 28
+        color: "#FFAA00"
+
+  - name: "bat_temp_high"
+    display_key: "battery_temp"
+    condition: "value > 65"
+    priority: "high"
+    duration_ms: 300
+    actions:
+      - type: "indicator_light"
+        widget: "bat_warn_light"
+        flash: true
+        flash_hz: 2
+      - type: "alarm_text"
+        text_zh: "电池温度过高！"
+        text_en: "BATTERY TEMP HIGH"
+        font_size: 32
+        color: "#FF4400"
+
+  - name: "bat_temp_critical"
+    display_key: "battery_temp"
+    condition: "value > 75"
+    priority: "high"
+    duration_ms: 200
+    actions:
+      - type: "indicator_light"
+        widget: "bat_warn_light"
+        flash: true
+        flash_hz: 3
+      - type: "alarm_text"
+        text_zh: "电池温度严重过高，请立即停车！"
+        text_en: "CRITICAL: BATTERY TEMP"
+        font_size: 32
+        color: "#FF0000"
