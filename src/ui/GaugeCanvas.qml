@@ -1,4 +1,7 @@
-// GaugeCanvas.qml - 高质量汽车仪表盘 Canvas 组件
+// GaugeCanvas.qml - 汽车仪表盘，两层结构：
+//   底层 Canvas：画表盘背景+刻度（静态，只画一次）
+//   中层 Canvas：画指针（value 变化时重绘）
+//   顶层 QML Text：显示数值+单位（value 变化时更新）
 import QtQuick 2.15
 
 Item {
@@ -15,14 +18,19 @@ Item {
     property string needleColor: "#00FF88"
     property string labelColor: "#88FF88"
 
-    width: 320
-    height: 320
+    width: 280
+    height: 280
 
+    // ============================================================
+    // 底层：表盘背景 + 刻度（静态，只画一次）
+    // ============================================================
     Canvas {
-        id: canvas
+        id: bgCanvas
         anchors.fill: parent
         antialiasing: true
         smooth: true
+
+        Component.onCompleted: requestPaint()
 
         onPaint: {
             var ctx = getContext("2d")
@@ -31,26 +39,25 @@ Item {
             var cx = w / 2
             var cy = h / 2
             var outerR = Math.min(cx, cy) - 4
-            var innerR = outerR - 35
 
             ctx.clearRect(0, 0, w, h)
 
-            // 1. 外环发光
-            var glow = ctx.createRadialGradient(cx, cy, outerR - 10, cx, cy, outerR + 20)
-            glow.addColorStop(0, needleColor + "33")
+            // 外环发光
+            var glow = ctx.createRadialGradient(cx, cy, outerR - 10, cx, cy, outerR + 15)
+            glow.addColorStop(0, needleColor + "22")
             glow.addColorStop(1, "transparent")
             ctx.beginPath()
-            ctx.arc(cx, cy, outerR + 20, 0, 2 * Math.PI)
+            ctx.arc(cx, cy, outerR + 15, 0, 2 * Math.PI)
             ctx.fillStyle = glow
             ctx.fill()
 
-            // 2. 表盘外圈（深色）
+            // 表盘外圈
             ctx.beginPath()
             ctx.arc(cx, cy, outerR, 0, 2 * Math.PI)
             ctx.fillStyle = "#0d0d0d"
             ctx.fill()
 
-            // 3. 表盘主体（径向渐变）
+            // 表盘主体
             var bgGrad = ctx.createRadialGradient(cx, cy - outerR * 0.3, outerR * 0.1, cx, cy, outerR)
             bgGrad.addColorStop(0, dialColor)
             bgGrad.addColorStop(0.7, "#0a0a0a")
@@ -60,16 +67,16 @@ Item {
             ctx.fillStyle = bgGrad
             ctx.fill()
 
-            // 4. 内圈（指针区域背景）
-            var innerBgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR * 0.75)
+            // 内圈
+            var innerBgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR * 0.72)
             innerBgGrad.addColorStop(0, "#111111")
             innerBgGrad.addColorStop(1, "#0a0a0a")
             ctx.beginPath()
-            ctx.arc(cx, cy, outerR * 0.75, 0, 2 * Math.PI)
+            ctx.arc(cx, cy, outerR * 0.72, 0, 2 * Math.PI)
             ctx.fillStyle = innerBgGrad
             ctx.fill()
 
-            // 5. 刻度线
+            // 刻度线 + 数字
             var startAngle = startAngleDeg * Math.PI / 180
             var endAngle = endAngleDeg * Math.PI / 180
             var angleRange = endAngle - startAngle
@@ -80,8 +87,8 @@ Item {
                 var angle = startAngle + t * angleRange
                 var isMajor = (i % minorTicksPerMajor === 0)
                 var tickOuter = outerR - 6
-                var tickInner = tickOuter - (isMajor ? 22 : 12)
-                var tickW = isMajor ? 2.5 : 1.0
+                var tickInner = tickOuter - (isMajor ? 18 : 10)
+                var tickW = isMajor ? 2.0 : 1.0
 
                 var cos = Math.cos(angle)
                 var sin = Math.sin(angle)
@@ -94,15 +101,14 @@ Item {
                 ctx.lineCap = "round"
                 ctx.stroke()
 
-                // 大刻度数字
                 if (isMajor) {
                     var majorIndex = i / minorTicksPerMajor
                     var labelValue = minValue + (majorIndex / (majorTickCount)) * (maxValue - minValue)
-                    var labelR = tickInner - 18
+                    var labelR = tickInner - 14
                     var lx = cx + labelR * cos
-                    var ly = cy + labelR * sin + 5
+                    var ly = cy + labelR * sin + 4
 
-                    ctx.font = "bold " + Math.round(outerR * 0.075) + "px Roboto Mono, monospace"
+                    ctx.font = "bold " + Math.round(outerR * 0.07) + "px Roboto Mono, monospace"
                     ctx.fillStyle = labelColor
                     ctx.textAlign = "center"
                     ctx.textBaseline = "middle"
@@ -110,45 +116,10 @@ Item {
                 }
             }
 
-            // 6. 指针
-            var ratio = Math.max(0, Math.min(1, (value - minValue) / (maxValue - minValue)))
-            var needleAngle = startAngle + ratio * angleRange
-            var needleLen = outerR - 40
-
-            // 指针发光
-            ctx.save()
-            ctx.shadowColor = needleColor
-            ctx.shadowBlur = 12
-
-            // 指针主体（细长三角形）
+            // 中心圆帽
             ctx.beginPath()
-            ctx.moveTo(cx, cy)
-            ctx.lineTo(
-                cx + needleLen * Math.cos(needleAngle - Math.PI / 2),
-                cy + needleLen * Math.sin(needleAngle - Math.PI / 2)
-            )
-            ctx.lineTo(
-                cx + needleLen * Math.cos(needleAngle),
-                cy + needleLen * Math.sin(needleAngle)
-            )
-            ctx.lineTo(
-                cx + needleLen * Math.cos(needleAngle + Math.PI / 2),
-                cy + needleLen * Math.sin(needleAngle + Math.PI / 2)
-            )
-            ctx.closePath()
-            var needleGrad = ctx.createLinearGradient(
-                cx, cy - needleLen, cx, cy
-            )
-            needleGrad.addColorStop(0, needleColor)
-            needleGrad.addColorStop(1, needleColor + "88")
-            ctx.fillStyle = needleGrad
-            ctx.fill()
-            ctx.restore()
-
-            // 7. 中心圆帽
-            ctx.beginPath()
-            ctx.arc(cx, cy, outerR * 0.06, 0, 2 * Math.PI)
-            var capGrad = ctx.createRadialGradient(cx - 3, cy - 3, 0, cx, cy, outerR * 0.06)
+            ctx.arc(cx, cy, outerR * 0.055, 0, 2 * Math.PI)
+            var capGrad = ctx.createRadialGradient(cx - 2, cy - 2, 0, cx, cy, outerR * 0.055)
             capGrad.addColorStop(0, "#444444")
             capGrad.addColorStop(1, "#111111")
             ctx.fillStyle = capGrad
@@ -156,29 +127,93 @@ Item {
 
             // 中心点
             ctx.beginPath()
-            ctx.arc(cx, cy, outerR * 0.025, 0, 2 * Math.PI)
+            ctx.arc(cx, cy, outerR * 0.022, 0, 2 * Math.PI)
             ctx.fillStyle = needleColor
             ctx.fill()
-
-            // 8. 底部数值显示
-            var valText = value.toFixed(0)
-            ctx.font = "bold " + Math.round(outerR * 0.22) + "px Roboto Mono, monospace"
-            ctx.fillStyle = "#FFFFFF"
-            ctx.textAlign = "center"
-            ctx.textBaseline = "middle"
-            ctx.shadowColor = needleColor
-            ctx.shadowBlur = 8
-            ctx.fillText(valText, cx, cy + outerR * 0.38)
-            ctx.shadowBlur = 0
-
-            // 9. 单位文字
-            ctx.font = "bold " + Math.round(outerR * 0.09) + "px Roboto Mono, monospace"
-            ctx.fillStyle = "#888888"
-            ctx.fillText(unit, cx, cy + outerR * 0.56)
         }
     }
 
-    onValueChanged: canvas.requestPaint()
-    onWidthChanged: canvas.requestPaint()
-    onHeightChanged: canvas.requestPaint()
+    // ============================================================
+    // 中层：指针（独立 Canvas，value 变化时重绘）
+    // ============================================================
+    Canvas {
+        id: needleCanvas
+        anchors.fill: parent
+        antialiasing: true
+        smooth: true
+
+        Connections {
+            target: root
+            function onValueChanged() { needleCanvas.requestPaint() }
+        }
+
+        Component.onCompleted: requestPaint()
+
+        onPaint: {
+            var ctx = getContext("2d")
+            var w = width
+            var h = height
+            var cx = w / 2
+            var cy = h / 2
+            var outerR = Math.min(cx, cy) - 4
+            var needleLen = outerR - 35
+
+            ctx.clearRect(0, 0, w, h)
+
+            var t = Math.max(0, Math.min(1, (value - minValue) / (maxValue - minValue)))
+            var needleAngle = startAngleDeg + t * (endAngleDeg - startAngleDeg)
+            var rad = needleAngle * Math.PI / 180
+
+            ctx.save()
+            ctx.translate(cx, cy)
+            ctx.rotate(rad)
+            ctx.shadowColor = needleColor
+            ctx.shadowBlur = 10
+
+            // 指针三角形：顶点朝右（0°），rotate后指向刻度
+            ctx.beginPath()
+            ctx.moveTo(needleLen, 0)
+            ctx.lineTo(-8, -5)
+            ctx.lineTo(-8,  5)
+            ctx.closePath()
+
+            var needleGrad = ctx.createLinearGradient(0, 0, -8, 0)
+            needleGrad.addColorStop(0, needleColor)
+            needleGrad.addColorStop(1, needleColor + "aa")
+            ctx.fillStyle = needleGrad
+            ctx.fill()
+            ctx.restore()
+        }
+    }
+
+    // ============================================================
+    // 顶层：数值 + 单位（独立 Text，value 变化时更新）
+    // ============================================================
+    // 指针底部在 cy+5，文字放在 cy+outerR*0.52 以下，避让指针
+    Column {
+        id: valueDisplay
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: root.width * 0.16
+        Text {
+            id: valueText
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: value.toFixed(0)
+            color: "#FFFFFF"
+            font.family: "Roboto Mono, monospace"
+            font.pixelSize: Math.round(root.width * 0.20)
+            font.weight: Font.Bold
+        }
+        Text {
+            id: unitText
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: unit
+            color: "#888888"
+            font.family: "Roboto Mono, monospace"
+            font.pixelSize: Math.round(root.width * 0.08)
+            font.weight: Font.Bold
+        }
+    }
+
+    onWidthChanged: bgCanvas.requestPaint()
+    onHeightChanged: bgCanvas.requestPaint()
 }

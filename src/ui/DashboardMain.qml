@@ -12,7 +12,45 @@ ApplicationWindow {
     title: "CAN-Dash 1920x720"
     color: "#000000"
 
-    // 背景
+    // ---- 平滑滤波状态 ----
+    property real rawSpeed: 0
+    property real rawRpm: 0
+    property real displaySpeed: 0
+    property real displayRpm: 0
+
+    // ---- 20ms 定时器：积分更新显示值（独立于 CAN 帧）----
+    Timer {
+        id: displayTimer
+        interval: 20
+        running: true
+        repeat: true
+        onTriggered: {
+            var alpha = 0.22
+            displaySpeed = displaySpeed + (rawSpeed - displaySpeed) * alpha
+            displayRpm = displayRpm + (rawRpm - displayRpm) * alpha
+            speedGauge.value = displaySpeed
+            rpmGauge.value = displayRpm
+        }
+    }
+
+    // ---- 监听 CAN 数据：只更新原始值 ----
+    Connections {
+        target: dashboard
+        function onDisplayDataChanged() {
+            rawSpeed = dashboard.displayData["vehicle_speed"] || 0
+            rawRpm = dashboard.displayData["rpm"] || 0
+            var v = Math.round((dashboard.displayData["bat_volt"] || 0) * 10) / 10
+            var soc = Math.round(dashboard.displayData["bat_soc"] || 0)
+            console.log("QML: spd=" + rawSpeed + " rpm=" + rawRpm + " v=" + v + " soc=" + soc)
+            batVoltText.text = v.toFixed(1) + " V"
+            batVoltText.color = v > 14.0 ? "#00FF88" : v > 12.0 ? "#FFAA00" : "#FF4400"
+            socBar.width = batPanel.width * (soc / 100)
+            socBar.color = soc < 20 ? "#FF2200" : "#00FF88"
+            socText.text = "SOC " + soc + "%"
+        }
+    }
+
+    // ---- 背景 ----
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -24,7 +62,7 @@ ApplicationWindow {
         }
     }
 
-    // 顶部警告灯条
+    // ---- 顶部警告灯条 ----
     Rectangle {
         id: warningBar
         anchors.top: parent.top
@@ -55,14 +93,14 @@ ApplicationWindow {
 
     // ===== 左侧：转速表 (RPM) =====
     GaugeCanvas {
-        id: tachGauge
-        x: 80
+        id: rpmGauge
+        x: 60
         y: 180
-        width: 500
-        height: 500
+        width: 380
+        height: 380
         minValue: 0
         maxValue: 8000
-        value: dashboard.get("rpm") || 0
+        value: 0
         unit: "RPM"
         dialColor: "#1a3a5c"
         needleColor: "#00AAFF"
@@ -73,16 +111,17 @@ ApplicationWindow {
         endAngleDeg: 405
     }
 
-    // ===== 中央：车速表 (大) =====
+    // ===== 中央：车速表 =====
     GaugeCanvas {
         id: speedGauge
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 130
-        width: 700
-        height: 700
+        anchors.verticalCenter: parent.verticalCenter
+        y: -30
+        width: 580
+        height: 580
         minValue: 0
         maxValue: 260
-        value: dashboard.get("vehicle_speed") || 0
+        value: 0
         unit: "km/h"
         dialColor: "#1a2a1a"
         needleColor: "#00FF88"
@@ -93,25 +132,26 @@ ApplicationWindow {
         endAngleDeg: 405
     }
 
-    // ===== 右侧：电池电压 + SOC =====
+    // ===== 右侧：电池 + SOC + 行驶状态 + 安全带 =====
     Column {
-        x: 1550
-        y: 200
-        spacing: 20
+        x: 1420
+        y: 180
+        spacing: 16
 
         // 电池电压大字
         Rectangle {
-            width: 250; height: 80
+            width: 220; height: 70
             color: "#1a1a1a"
             radius: 8
             border.color: "#333333"
             border.width: 1
 
             Text {
+                id: batVoltText
                 anchors.centerIn: parent
-                text: (dashboard.get("bat_volt") || 0).toFixed(1) + " V"
-                color: dashboard.get("bat_volt") > 14.0 ? "#00FF88" : dashboard.get("bat_volt") > 12.0 ? "#FFAA00" : "#FF4400"
-                font.pixelSize: 36
+                text: (dashboard.displayData["bat_volt"] || 0).toFixed(1) + " V"
+                color: "#00FF88"
+                font.pixelSize: 32
                 font.weight: Font.Bold
                 font.family: "Roboto Mono, monospace"
             }
@@ -119,36 +159,35 @@ ApplicationWindow {
 
         // SOC 进度条
         Rectangle {
-            width: 250; height: 30
+            id: batPanel
+            width: 220; height: 28
             color: "#1a1a1a"
             radius: 6
             border.color: "#333333"
 
             Rectangle {
+                id: socBar
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                width: parent.width * ((dashboard.get("bat_soc") || 0) / 100)
+                width: parent.width * ((dashboard.displayData["bat_soc"] || 0) / 100)
                 radius: 6
-                gradient: Gradient {
-                    GradientStop { position: 0; color: "#00FF88" }
-                    GradientStop { position: 0.5; color: "#AAFF00" }
-                    GradientStop { position: 1; color: dashboard.get("bat_soc") < 20 ? "#FF2200" : "#00FF88" }
-                }
+                color: "#00FF88"
             }
 
             Text {
+                id: socText
                 anchors.centerIn: parent
-                text: "SOC " + (dashboard.get("bat_soc") || 0).toFixed(0) + "%"
+                text: "SOC " + (dashboard.displayData["bat_soc"] || 0).toFixed(0) + "%"
                 color: "#FFFFFF"
-                font.pixelSize: 14
+                font.pixelSize: 13
                 font.weight: Font.Bold
             }
         }
 
         // 行驶状态
         Rectangle {
-            width: 250; height: 80
+            width: 220; height: 70
             color: "#1a1a1a"
             radius: 8
             border.color: dashboard.isMoving ? "#00AA44" : "#333333"
@@ -159,14 +198,14 @@ ApplicationWindow {
                 Text {
                     text: dashboard.isMoving ? "行驶中" : "停车"
                     color: dashboard.isMoving ? "#00FF88" : "#666666"
-                    font.pixelSize: 24
+                    font.pixelSize: 22
                     font.weight: Font.Bold
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
                     text: dashboard.isMoving ? "⚡ 正常" : "◇ 待机"
                     color: "#888888"
-                    font.pixelSize: 14
+                    font.pixelSize: 13
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
@@ -174,18 +213,18 @@ ApplicationWindow {
 
         // 安全带状态
         Rectangle {
-            width: 250; height: 120
+            width: 220; height: 110
             color: "#1a1a1a"
             radius: 8
             border.color: "#333333"
 
             Row {
                 anchors.centerIn: parent
-                spacing: 10
+                spacing: 8
                 Repeater {
                     model: dashboard.seatIconStates.length
                     Rectangle {
-                        width: 50; height: 80
+                        width: 44; height: 75
                         radius: 4
                         color: {
                             var s = dashboard.seatIconStates[index]
@@ -205,7 +244,7 @@ ApplicationWindow {
                                     return s.buckled ? "✓" : "!"
                                 }
                                 color: "#FFFFFF"
-                                font.pixelSize: 20
+                                font.pixelSize: 18
                                 font.weight: Font.Bold
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
@@ -215,7 +254,7 @@ ApplicationWindow {
                                     return s ? (s.id || "") : ""
                                 }
                                 color: "#888888"
-                                font.pixelSize: 10
+                                font.pixelSize: 9
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
                         }
@@ -275,7 +314,7 @@ ApplicationWindow {
         }
     }
 
-    // ===== 报警横幅（最高优先级） =====
+    // ===== 报警横幅 =====
     Rectangle {
         id: alarmBanner
         anchors.horizontalCenter: parent.horizontalCenter

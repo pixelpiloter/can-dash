@@ -1,22 +1,18 @@
 // can_signal_monitor.cpp
 #include "can_signal_monitor.h"
 #include <cmath>
-#include <cstdio>
+#include <cstring>
 
 CanSignalMonitor::CanSignalMonitor(MonitorCallbacks cb)
     : m_cb(cb) {}
 
 CanSignalMonitor::~CanSignalMonitor() {
-    for (int i = 0; i < m_count; i++) {
-        delete[] m_states[i].history;
-    }
-    delete[] m_states;
+    // 静态 buffer，无需手动 delete
 }
 
 void CanSignalMonitor::init(const SignalMonitorDef* table, int table_count) {
     m_table = table;
     m_count = table_count;
-    m_states = new SignalState[table_count]();
 
     for (int i = 0; i < table_count; i++) {
         m_states[i].def = &table[i];
@@ -28,8 +24,13 @@ void CanSignalMonitor::init(const SignalMonitorDef* table, int table_count) {
         m_states[i].firstSeenMs = 0;
         m_states[i].received = false;
         m_states[i].historyCount = table[i].smoothing_window > 0 ? table[i].smoothing_window : 0;
-        m_states[i].history = m_states[i].historyCount > 0 ? new float[m_states[i].historyCount]() : nullptr;
+        // 静态 history 池：每信号分配 MAX_SIGNAL_HISTORY 槽位
+        m_states[i].history = (m_states[i].historyCount > 0) ? m_historyPool[i] : nullptr;
         m_states[i].historyIndex = 0;
+        // 清零 history 池对应槽位
+        if (m_states[i].history) {
+            std::memset(m_historyPool[i], 0, sizeof(m_historyPool[i]));
+        }
     }
 }
 

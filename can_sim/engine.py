@@ -52,7 +52,7 @@ class CanSimulator:
 
     def send_frame(self, sock: socket.socket, can_id: int, data: bytes):
         # Unix Socket 格式：[can_id(4bytes LE)][dlc(1byte)][data(8bytes)]
-        msg = struct.pack("<IB8s", can_id, len(data), data.ljust(8, b'\x00'))
+        msg = struct.pack("<IB", can_id, len(data)) + data
         sock.send(msg)
 
     def run(self):
@@ -105,7 +105,7 @@ class CanSimulator:
                 self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
 
                 motor_temp_raw = int(self.state["motor_temp"] + 40)
-                data = struct.pack("<hhb", self.state["motor_rpm"], 0, motor_temp_raw)
+                data = struct.pack("<hhB", self.state["motor_rpm"], 0, motor_temp_raw)
                 self.send_frame(sock, 0x101, data)
 
             # ─── 座椅占用帧 0x2F0/0x2F1 (500ms) ───

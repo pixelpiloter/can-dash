@@ -28,6 +28,10 @@ public:
     // 根据字段名查找索引
     int findFieldIndex(const char* name) const;
 
+    // 访问内部表（供 DashboardBackend 使用）
+    const CanFieldDef* fieldTable() const { return m_table; }
+    int fieldCount() const { return m_tableCount; }
+
 private:
     const CanFieldDef* m_table = nullptr;
     int m_tableCount = 0;

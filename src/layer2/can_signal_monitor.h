@@ -1,11 +1,10 @@
 // can_signal_monitor.h
 // Layer 2: CAN 信号健康监控（超时/范围/突变）
-// 纯 C++，无 Qt
+// 纯 C++，无 Qt，无动态内存
 
 #pragma once
 #include <cstdint>
 #include <cstring>
-#include <functional>
 
 enum SignalQuality {
     SIGNAL_GOOD = 0,       // 正常
@@ -35,7 +34,7 @@ struct SignalState {
     uint64_t      lastUpdateMs;
     uint64_t      firstSeenMs;
     bool          received;
-    float*        history;
+    float*        history;       // 指向静态 history 池中的槽位
     int           historyIndex;
     int           historyCount;
 };
@@ -77,9 +76,13 @@ private:
     SignalState* findByCanId(uint32_t can_id);
     void updateQuality(SignalState* state, SignalQuality q, uint64_t now_ms);
 
+    static constexpr int MAX_SIGNAL_MONITORS = 32;
+    static constexpr int MAX_SIGNAL_HISTORY = 16;  // 每信号最大平滑窗口
+
     MonitorCallbacks m_cb;
     const SignalMonitorDef* m_table = nullptr;
-    SignalState* m_states = nullptr;
+    SignalState m_states[MAX_SIGNAL_MONITORS];
+    float m_historyPool[MAX_SIGNAL_MONITORS][MAX_SIGNAL_HISTORY];  // 静态 history 池
     int m_count = 0;
     uint64_t m_lastTickMs = 0;
 };

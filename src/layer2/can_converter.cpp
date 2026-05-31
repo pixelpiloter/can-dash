@@ -22,10 +22,21 @@ uint32_t CanConverter::processFrame(uint32_t can_id, const uint8_t* data,
         float value = applyScaleOffset(def, raw);
 
         // 通过 display_key 名称写入 DisplayData 对应字段
-        // 简单实现：通过字段索引（display_key_index）直接算偏移
-        // 实际项目中通过 name → offset 查找表实现
-        (void)value;
-        (void)out;
+        if (strcmp(def->display_key, "bat_volt") == 0) {
+            out.bat_volt = value;
+        } else if (strcmp(def->display_key, "bat_curr") == 0) {
+            out.bat_curr = value;
+        } else if (strcmp(def->display_key, "bat_soc") == 0) {
+            out.bat_soc = value;
+        } else if (strcmp(def->display_key, "vehicle_speed") == 0) {
+            out.vehicle_speed = value;
+        } else if (strcmp(def->display_key, "brake") == 0) {
+            out.brake = value;
+        } else if (strcmp(def->display_key, "motor_rpm") == 0) {
+            out.motor_rpm = value;
+        } else if (strcmp(def->display_key, "motor_temp") == 0) {
+            out.motor_temp = value;
+        }
 
         updated_mask |= (1U << i);
     }

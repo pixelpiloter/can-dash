@@ -7,12 +7,12 @@
 #include <QVariant>
 #include <QTimer>
 #include <QMap>
+#include <QLocalServer>
 
 // Layer 2 前向声明
 class CanConverter;
 class AlarmRuntime;
 class SeatBeltRuntime;
-class CanReceiverQt;
 
 class DashboardBackend : public QObject {
     Q_OBJECT
@@ -69,6 +69,8 @@ public slots:
 
 private:
     void updateSeatBeltStates();
+    void startSocketServer();
+    void onSocketReadyRead();
 
     // Layer 2 运行时（纯 C++）
     CanConverter*    m_converter = nullptr;
@@ -88,4 +90,7 @@ private:
     QVariantMap m_displayData;
 
     QTimer* m_tickTimer = nullptr;
+    QLocalServer* m_socketServer = nullptr;
+    QLocalSocket* m_socketConnection = nullptr;
+    QByteArray m_rxBuffer;  // 跨 readyRead 调用的解析缓冲
 };
