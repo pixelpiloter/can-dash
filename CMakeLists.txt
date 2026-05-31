@@ -24,6 +24,7 @@ file(GLOB GENERATED_SOURCES CONFIGURE_DEPENDS
 )
 set_source_files_properties(${GENERATED_DIR}/*.c PROPERTIES LANGUAGE CXX)
 file(GLOB LAYER2_SOURCES CONFIGURE_DEPENDS ${LAYER2_DIR}/*.cpp ${LAYER2_DIR}/*.h)
+file(GLOB LAYER1_SOURCES CONFIGURE_DEPENDS ${LAYER1_DIR}/*.cpp ${LAYER1_DIR}/*.h ${LAYER1_DIR}/shm/*.cpp)
 file(GLOB LAYER3_SOURCES CONFIGURE_DEPENDS ${LAYER3_DIR}/*.cpp)
 
 # 编译前自动运行 yaml_to_c.py，然后 post-process 修复 {{ -> {
@@ -50,6 +51,7 @@ if(Qt6_FOUND)
     add_executable(can-dash
         src/main.cpp
         ${LAYER2_SOURCES}
+        ${LAYER1_SOURCES}
         ${LAYER3_SOURCES}
         ${GENERATED_SOURCES}
     )
@@ -61,7 +63,7 @@ if(Qt6_FOUND)
         ${LAYER2_DIR}
         ${LAYER3_DIR}
     )
-    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg)
+    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg rt)
 else()
     message(STATUS "Qt6 not found — skipping can-dash UI binary (UT only)")
 endif()

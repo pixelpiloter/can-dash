@@ -15,7 +15,7 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, List
 
-SOCKET_PATH = "/tmp/can_dash_socket"
+SOCKET_PATH = "/tmp/can_processor_socket"
 
 
 @dataclass
@@ -105,7 +105,7 @@ class CanSimulator:
                 self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
 
                 motor_temp_raw = int(self.state["motor_temp"] + 40)
-                data = struct.pack("<hhb", self.state["motor_rpm"], 0, motor_temp_raw)
+                data = struct.pack("<hhB", self.state["motor_rpm"], 0, motor_temp_raw)
                 self.send_frame(sock, 0x101, data)
 
             # ─── 座椅占用帧 0x2F0/0x2F1 (500ms) ───

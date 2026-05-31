@@ -1,20 +1,14 @@
 // dashboard_backend_qt.h
-// Layer 3: Qt 适配层 - DashboardBackend
-// 组合所有 Layer 2 Runtime，暴露 Q_PROPERTY 给 QML
+// Layer 3: Qt 适配层 - DashboardBackend（仅显示，从共享内存读取）
+// 暴露 Q_PROPERTY 给 QML
 
 #pragma once
 #include <QObject>
 #include <QVariant>
 #include <QTimer>
-#include <QMap>
-#include <QLocalServer>
-#include <QLocalSocket>
+#include <QVariantMap>
+#include "layer1/shm/shm_display.h"
 
-// Layer 2 前向声明
-class CanConverter;
-class AlarmRuntime;
-class SeatBeltRuntime;
-class IndicatorRuntime;
 class LanguageManager;
 
 class DashboardBackend : public QObject {
@@ -60,11 +54,11 @@ public:
     QVariantMap displayData() const { return m_displayData; }
     QVariantMap indicatorStates() const { return m_indicatorStates; }
 
-    // QML 暴露的通用查询接口
+    // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
 
-    // 多语言翻译
+    // 多语言
     Q_INVOKABLE QString tr(const QString& key) const;
     Q_INVOKABLE void setLanguage(const QString& lang);
     QString currentLanguage() const { return m_currentLanguage; }
@@ -73,7 +67,7 @@ public:
     // 指示灯查询
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
 
-    // 指示灯控制（由 AlarmRuntime 调用）
+    // 指示灯控制（来自 QML，仅调试用）
     Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
     Q_INVOKABLE void setIndicator(const QString& widget_id, bool on);
 
@@ -87,34 +81,13 @@ signals:
     void languageChanged();
 
 public slots:
-    // 接收 CAN 帧（来自 Unix Socket）
-    void onCanFrameReceived(quint32 canId, const QByteArray& data);
-
-    // 定时更新
     void onTick();
 
-private slots:
-    // Unix Socket 客户端连接
-    void onNewConnection();
-    void onSocketReadyRead();
-
 private:
-    void updateSeatBeltStates();
-    void handleCanFrameData(const QByteArray& data, quint32 canId);
+    QVariantMap indicatorSlotToMap(const ShmIndicatorSlot& slot) const;
 
-    // Layer 2 运行时（纯 C++）
-    CanConverter*      m_converter = nullptr;
-    AlarmRuntime*     m_alarmRuntime = nullptr;
-    SeatBeltRuntime*  m_seatBeltRuntime = nullptr;
-    IndicatorRuntime* m_indicatorRuntime = nullptr;
-    LanguageManager*  m_langManager = nullptr;
-
+    LanguageManager* m_langManager = nullptr;
     QString m_currentLanguage = "zh_CN";
-
-    // Unix Socket 服务器
-    QLocalServer*  m_socketServer = nullptr;
-    QLocalSocket*  m_socketConnection = nullptr;
-    QByteArray     m_rxBuffer;
 
     // 报警状态
     bool m_backendAlarmActive = false;
