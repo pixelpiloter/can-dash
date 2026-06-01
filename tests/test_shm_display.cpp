@@ -1,6 +1,11 @@
 // test_shm_display.cpp
 // Layer 1 共享内存层单元测试：magic/version 校验 + CRC32 checksum + 心跳
 
+// 这个测试大量依赖 assert() 实际生效（abort-on-fail）。
+// Release 构建会 -DNDEBUG 把 assert 变 no-op，导致错误流程被吞掉、测试假绿。
+// 注意：必须先 #undef NDEBUG 再 #include <cassert>，否则 cassert 已经按
+// NDEBUG 状态定义了一个 no-op 版本，undef 也救不回来。
+#undef NDEBUG
 #include <cstdio>
 #include <cstring>
 #include <cassert>

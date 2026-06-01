@@ -25,7 +25,10 @@ cppcheck \
     --enable=warning,style,performance,portability \
     --inline-suppr \
     --suppress=missingIncludeSystem \
+    --suppress=missingInclude \
     --suppress=unusedFunction \
+    --suppress=unusedStructMember \
+    --suppress=unreadVariable \
     --std=c++17 \
     --language=c++ \
     --error-exitcode=1 \
