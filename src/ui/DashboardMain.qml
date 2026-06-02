@@ -159,8 +159,8 @@ ApplicationWindow {
         id: speedGauge
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        y: -30
-        width: 580; height: 580
+        y: -50
+        width: 480; height: 480
         minValue: 0; maxValue: 260
         value: 0
         unit: dashboard.tr("unit.speed")
@@ -175,25 +175,25 @@ ApplicationWindow {
 
     // ─── 右侧：电池 + SOC + 行驶状态 + 温度 ───
     Column {
-        x: 1420; y: 180
-        spacing: 16
+        x: 1500; y: 180
+        spacing: 12
 
         Rectangle {
-            width: 220; height: 70
+            width: 200; height: 62
             color: "#1a1a1a"; radius: 8
             border.color: "#333333"; border.width: 1
             Text {
                 id: batVoltText
                 anchors.centerIn: parent
                 text: (dashboard.displayData["bat_volt"] || 0).toFixed(1) + " V"
-                color: "#00FF88"; font.pixelSize: 30; font.weight: Font.Bold
+                color: "#00FF88"; font.pixelSize: 26; font.weight: Font.Bold
                 font.family: dashboard.currentFont
             }
         }
 
         Rectangle {
             id: batPanel
-            width: 220; height: 28
+            width: 200; height: 26
             color: "#1a1a1a"; radius: 6
             border.color: "#333333"
             Rectangle {
@@ -207,46 +207,94 @@ ApplicationWindow {
                 id: socText
                 anchors.centerIn: parent
                 text: "SOC " + (dashboard.displayData["bat_soc"] || 0).toFixed(0) + "%"
-                color: "#FFFFFF"; font.pixelSize: 13; font.weight: Font.Bold
+                color: "#FFFFFF"; font.pixelSize: 12; font.weight: Font.Bold
             }
         }
 
         Rectangle {
-            width: 220; height: 70
+            width: 200; height: 60
             color: "#1a1a1a"; radius: 8
             border.color: dashboard.isMoving ? "#00AA44" : "#333333"
             border.width: dashboard.isMoving ? 2 : 1
-            Column { anchors.centerIn: parent; spacing: 2
+            Column { anchors.centerIn: parent; spacing: 1
                 Text {
                     text: dashboard.isMoving ? dashboard.tr("status.driving") : dashboard.tr("status.parked")
-                    color: dashboard.isMoving ? "#00FF88" : "#666666"; font.pixelSize: 22; font.weight: Font.Bold
+                    color: dashboard.isMoving ? "#00FF88" : "#666666"; font.pixelSize: 20; font.weight: Font.Bold
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
                     text: dashboard.isMoving ? (dashboard.tr("status.normal") + " ⚡") : dashboard.tr("status.standby") + " ◇"
-                    color: "#888888"; font.pixelSize: 13
+                    color: "#888888"; font.pixelSize: 12
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
         }
 
         Rectangle {
-            width: 220; height: 60
+            width: 200; height: 50
             color: "#1a1a1a"; radius: 8; border.color: "#333333"
-            Row { anchors.centerIn: parent; spacing: 8
+            Row { anchors.centerIn: parent; spacing: 6
                 Text {
                     id: motorTempText
                     text: (dashboard.displayData["motor_temp"] || 0) + dashboard.tr("unit.temperature")
-                    color: "#FFAA00"; font.pixelSize: 24; font.weight: Font.Bold
+                    color: "#FFAA00"; font.pixelSize: 22; font.weight: Font.Bold
                 }
             }
         }
 
         // 安全带状态（使用独立 SeatBeltZone 组件）
         SeatBeltZone {
-            width: 220
-            height: 110
+            width: 200
+            height: 90
         }
+    }
+
+    // ─── 底部中央：能量流图 + 历史曲线 + 派生指标 ───
+    // 能量流图（横向压缩，400x95 紧凑布局）
+    EnergyFlowDiagram {
+        id: energyFlow
+        x: 80; y: 590
+        width: 420; height: 95
+
+        // 通过 Connections 绑定到 displayData
+        energyMode:    dashboard.displayData["energy_mode"]   || 0
+        batSoc:        dashboard.displayData["bat_soc"]        || 0
+        batteryTemp:   dashboard.displayData["battery_temp"]  || 0
+        engineRpm:     dashboard.displayData["engine_rpm"]     || 0
+        motorRpm:      dashboard.displayData["motor_rpm"]      || 0
+        vehicleSpeed:  dashboard.displayData["vehicle_speed"]  || 0
+        chargePower:   dashboard.displayData["charge_power"]   || 0
+        brakeActive:   (dashboard.displayData["brake"] || 0) > 30
+    }
+
+    // 速度历史曲线（60s 滑动窗口）
+    Sparkline {
+        x: 530; y: 595
+        width: 240; height: 85
+        title: "SPEED 60s"
+        unit: "km/h"
+        minValue: 0; maxValue: 260
+        lineColor: "#00FF88"
+        fillColor: "#2200FF88"
+        sourceValue: dashboard.displayData["vehicle_speed"] || 0
+    }
+
+    // RPM 历史曲线
+    Sparkline {
+        x: 785; y: 595
+        width: 240; height: 85
+        title: "MOTOR RPM 60s"
+        unit: "rpm"
+        minValue: 0; maxValue: 8000
+        lineColor: "#00AAFF"
+        fillColor: "#2200AAFF"
+        sourceValue: dashboard.displayData["motor_rpm"] || 0
+    }
+
+    // 派生指标面板（4 个指标：平均速度/累计里程/百公里电耗/续航可信度）
+    DerivedMetrics {
+        x: 1040; y: 595
+        width: 440; height: 85
     }
 
     // ─── 报警横幅（z=9999，最高层）───
