@@ -19,6 +19,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
+# jsonschema 是可选依赖, 没装也能跑 (只是 schema 校验降级为 warning)
+try:
+    import jsonschema  # type: ignore
+    _HAS_JSONSCHEMA = True
+except ImportError:
+    _HAS_JSONSCHEMA = False
+
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 SCHEMA_DIR = Path(__file__).parent.parent / "schemas"
 
@@ -274,6 +281,74 @@ def validate_display_layout(result: ValidationResult):
                 result.add_error("display_layout.yaml", "components[?].id", "component id 未定义")
 
 
+def validate_vehicle_thresholds(result: ValidationResult):
+    """校验 vehicle_thresholds.yaml (v3 探针)
+
+    检查:
+    1. JSON Schema (字段类型 + 取值范围) — 借 jsonschema 库
+    2. 业务逻辑不变量 (warning > critical, disengage > engage, etc.)
+    """
+    data = load_yaml("vehicle_thresholds.yaml")
+    thresholds = data.get("vehicle_thresholds")
+    if not thresholds:
+        result.add_error(
+            "vehicle_thresholds.yaml", "vehicle_thresholds",
+            "vehicle_thresholds 节点缺失或为空"
+        )
+        return
+
+    # ── JSON Schema 校验 ──
+    schema_path = SCHEMA_DIR / "vehicle_thresholds.schema.json"
+    if schema_path.exists():
+        if not _HAS_JSONSCHEMA:
+            result.add_warning(
+                "jsonschema 未安装, 跳过 schema 校验 (pip install jsonschema)"
+            )
+        else:
+            try:
+                with open(schema_path) as f:
+                    schema = json.load(f)
+                jsonschema.validate(data, schema)
+            except jsonschema.ValidationError as e:
+                result.add_error(
+                    "vehicle_thresholds.yaml",
+                    f"vehicle_thresholds.{list(e.absolute_path)}",
+                    e.message
+                )
+    else:
+        result.add_warning(
+            f"schemas/vehicle_thresholds.schema.json 不存在, 跳过 schema 校验"
+        )
+
+    # ── 业务逻辑不变量 (yaml 单独表达, schema 写不下的语义) ──
+    if "soc_warning_low" in thresholds and "soc_critical_low" in thresholds:
+        if thresholds["soc_warning_low"] <= thresholds["soc_critical_low"]:
+            result.add_error(
+                "vehicle_thresholds.yaml", "vehicle_thresholds.soc_warning_low",
+                f"soc_warning_low ({thresholds['soc_warning_low']}) 必须 > "
+                f"soc_critical_low ({thresholds['soc_critical_low']})",
+                "warning 等级应高于 critical, 否则告警永远不触发"
+            )
+
+    if "readygo_speed_engage_kmh" in thresholds and "readygo_speed_disengage_kmh" in thresholds:
+        if thresholds["readygo_speed_engage_kmh"] >= thresholds["readygo_speed_disengage_kmh"]:
+            result.add_error(
+                "vehicle_thresholds.yaml", "vehicle_thresholds.readygo_speed_engage_kmh",
+                f"engage ({thresholds['readygo_speed_engage_kmh']}) 必须 < "
+                f"disengage ({thresholds['readygo_speed_disengage_kmh']})",
+                "否则 ReadyGo 会出现 engage=disengage 时立刻关闭的死循环"
+            )
+
+    if "precharge_auto_done_ms" in thresholds and "precharge_timeout_ms" in thresholds:
+        if thresholds["precharge_auto_done_ms"] >= thresholds["precharge_timeout_ms"]:
+            result.add_error(
+                "vehicle_thresholds.yaml", "vehicle_thresholds.precharge_auto_done_ms",
+                f"auto_done ({thresholds['precharge_auto_done_ms']}ms) 必须 < "
+                f"timeout ({thresholds['precharge_timeout_ms']}ms)",
+                "否则预充电永远先 timeout 再 done, 永远走 FAILED 路径"
+            )
+
+
 def validate_cross_references(result: ValidationResult):
     """跨文件引用校验"""
     alarm_data = load_yaml("alarm_rules.yaml")
@@ -384,6 +459,7 @@ def validate_all() -> ValidationResult:
     validate_seat_belt(result)
     validate_indicators(result)
     validate_display_layout(result)
+    validate_vehicle_thresholds(result)  # v3 探针
     validate_cross_references(result)
     validate_display_key_three_way(result)
     return result

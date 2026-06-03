@@ -1,11 +1,13 @@
 // vehicle_logic.cpp
 // Layer 2: 车速/SOC/驾驶模式业务逻辑
 // 纯 C++，无 Qt，无 YAML 运行时
+// v3 探针: 阈值由 config/vehicle_thresholds.yaml → generated/vehicle_config.cpp 提供
 
 #include "vehicle_logic.h"
 #include "../layer1/display_data.h"
 #include "event_bus.h"
 #include "time_util.h"
+#include "../generated/vehicle_config.h"  // v3 探针: kDefaultVehicleConfig 声明
 #include <cmath>
 #include <algorithm>
 
@@ -30,12 +32,8 @@ void VehicleLogic::init(const VehicleConfigDef* config) {
     if (config) {
         m_config = *config;
     } else {
-        // 默认配置
-        m_config.soc_warning_low = 10.0f;
-        m_config.soc_critical_low = 5.0f;
-        m_config.speed_max = 260.0f;
-        m_config.precharge_timeout_ms = 3000;
-        m_config.soc_smoothing_window = 5;
+        // v3 探针: nullptr 走 yaml 生成的默认值, 不再硬编码
+        m_config = kDefaultVehicleConfig;
     }
 }
 
@@ -109,8 +107,8 @@ void VehicleLogic::tick(uint64_t now_ms) {
     // ─── 预充电完成 → ReadyGo ───
     if (m_prechargeState == PRECHARGE_ACTIVE) {
         // 实际项目中通过 BMS 确认预充电完成信号
-        // 简化：预充电 500ms 后自动完成
-        if (now_ms - m_prechargeStartMs > 500) {
+        // 简化：预充电 N ms 后自动完成 (N 来自 yaml: precharge_auto_done_ms)
+        if (now_ms - m_prechargeStartMs > static_cast<uint64_t>(m_config.precharge_auto_done_ms)) {
             m_prechargeState = PRECHARGE_DONE;
             m_readyGoActive = true;
             Event e5{/*key=*/"ready_go", /*value=*/1.0f, /*prev_value=*/0.0f,
@@ -120,9 +118,10 @@ void VehicleLogic::tick(uint64_t now_ms) {
     }
 
     // ─── ReadyGo 逻辑 ───
-    if (m_prechargeState == PRECHARGE_DONE && m_speedValid && m_speed < 0.5f) {
+    if (m_prechargeState == PRECHARGE_DONE && m_speedValid
+        && m_speed < m_config.readygo_speed_engage_kmh) {
         m_readyGoActive = true;
-    } else if (m_speed > 5.0f) {
+    } else if (m_speed > m_config.readygo_speed_disengage_kmh) {
         // 行驶中关闭 ReadyGo
         m_readyGoActive = false;
     }

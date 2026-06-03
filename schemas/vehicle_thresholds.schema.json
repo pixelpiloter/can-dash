@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "vehicle_thresholds",
+  "description": "车辆业务阈值 (v3 探针) — 编译期常量, 通过 yaml_to_c.py 生成 C++ 默认配置",
+  "type": "object",
+  "required": ["vehicle_thresholds"],
+  "properties": {
+    "vehicle_thresholds": {
+      "type": "object",
+      "required": [
+        "soc_warning_low",
+        "soc_critical_low",
+        "speed_max",
+        "precharge_timeout_ms",
+        "precharge_auto_done_ms",
+        "soc_smoothing_window",
+        "readygo_speed_engage_kmh",
+        "readygo_speed_disengage_kmh"
+      ],
+      "properties": {
+        "soc_warning_low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "SOC 低电量告警阈值 (%)"
+        },
+        "soc_critical_low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "SOC 严重告警阈值 (%)"
+        },
+        "speed_max": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 500,
+          "description": "表盘满量程车速 (km/h)"
+        },
+        "precharge_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000,
+          "description": "预充电超时时间 (ms)"
+        },
+        "precharge_auto_done_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "预充电自动完成延迟 (ms, 模拟用)"
+        },
+        "soc_smoothing_window": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "SOC 滑动平均窗口大小"
+        },
+        "readygo_speed_engage_kmh": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "ReadyGo 激活速度上限 (km/h)"
+        },
+        "readygo_speed_disengage_kmh": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50,
+          "description": "ReadyGo 关闭速度阈值 (km/h)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

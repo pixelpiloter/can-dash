@@ -7,6 +7,7 @@
 #include <vector>
 #include "../src/layer2/vehicle_logic.h"
 #include "../src/layer2/event_bus.h"
+#include "../src/generated/vehicle_config.h"  // v3 探针: kDefaultVehicleConfig
 
 // 验证 EventBus 发布的事件
 static std::vector<std::string> published_keys;
@@ -121,6 +122,35 @@ int main() {
     logic.tick(900);
     assert(!logic.isReadyGo());
     printf("  ✓ ReadyGo 激活/关闭逻辑正确\n");
+
+    // ─── 测试10：v3 探针 — yaml 生成的 kDefaultVehicleConfig 字段一致性 ───
+    // 这是 v3 探针的核心断言: 改 yaml 后重新跑此测试,
+    // 若任何阈值与 config/vehicle_thresholds.yaml 不一致则 fail.
+    printf("\n[测试10] v3 探针: kDefaultVehicleConfig == vehicle_thresholds.yaml\n");
+    assert(kDefaultVehicleConfig.soc_warning_low == 10.0f);
+    assert(kDefaultVehicleConfig.soc_critical_low == 5.0f);
+    assert(kDefaultVehicleConfig.speed_max == 260.0f);
+    assert(kDefaultVehicleConfig.precharge_timeout_ms == 3000u);
+    assert(kDefaultVehicleConfig.precharge_auto_done_ms == 500u);
+    assert(kDefaultVehicleConfig.soc_smoothing_window == 5);
+    assert(kDefaultVehicleConfig.readygo_speed_engage_kmh == 0.5f);
+    assert(kDefaultVehicleConfig.readygo_speed_disengage_kmh == 5.0f);
+    printf("  ✓ 8 个阈值与 yaml 一致 (soc_warn=10, soc_crit=5, speed_max=260,\n");
+    printf("    precharge_timeout=3000ms, precharge_auto_done=500ms,\n");
+    printf("    soc_window=5, readygo_engage=0.5kmh, readygo_disengage=5.0kmh)\n");
+
+    // ─── 测试11：v3 探针 — init(nullptr) 走 yaml 默认 ───
+    printf("\n[测试11] v3 探针: init(nullptr) 应用 yaml 默认值\n");
+    VehicleLogic logic3;
+    logic3.init(nullptr);  // 不传 config, 走 yaml
+    assert(logic3.config().soc_warning_low == 10.0f);
+    assert(logic3.config().readygo_speed_disengage_kmh == 5.0f);
+    assert(logic3.config().precharge_auto_done_ms == 500u);
+    // 跑一遍行为, 验证阈值生效
+    logic3.onHvStatusUpdate(true);
+    logic3.tick(600);  // > 500ms, 应该走 auto_done
+    assert(logic3.getPrechargeState() == PRECHARGE_DONE);
+    printf("  ✓ init(nullptr) 行为正确 (走 yaml 默认配置)\n");
 
     printf("\n所有测试通过。\n");
     return 0;

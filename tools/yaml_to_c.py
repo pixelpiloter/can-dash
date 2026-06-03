@@ -417,6 +417,72 @@ const int INDICATOR_TABLE_COUNT = {len(entries)};
 """
 
 
+def gen_vehicle_config_h(threshold_data: Dict) -> str:
+    """生成 vehicle_config.h (v3 探针)
+
+    仅声明 kDefaultVehicleConfig, 定义在 .cpp 里.
+    这是与其他生成代码一致的 idiom (alarm_rule_def.h + alarm_rule_table.cpp).
+    """
+    return """// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
+// ⚠️ 请勿手动修改，修改请改 config/vehicle_thresholds.yaml
+//
+// v3 探针产物: 车辆业务阈值编译期常量声明
+// 定义见 vehicle_config.cpp (由 yaml_to_c.py 同步生成, 加入 GENERATED_SOURCES)
+
+#pragma once
+#include "vehicle_logic.h"
+
+extern const VehicleConfigDef kDefaultVehicleConfig;
+"""
+
+
+def gen_vehicle_config_c(threshold_data: Dict) -> str:
+    """生成 vehicle_config.cpp (v3 探针)
+
+    从 config/vehicle_thresholds.yaml 读取阈值,
+    输出 kDefaultVehicleConfig 全局常量供 VehicleLogic::init(nullptr) 使用.
+
+    设计: 编译期常量 (无运行时 yaml 解析), 复用现有 yaml_to_c.py 基础设施.
+    """
+    t = threshold_data.get("vehicle_thresholds", {})
+
+    # 类型安全: yaml.safe_load 已解析为正确类型 (float/int), 无需再转
+    # 但加 static_cast 满足 -Wsign-conversion -Wconversion
+    soc_warn = float(t.get("soc_warning_low", 10.0))
+    soc_crit = float(t.get("soc_critical_low", 5.0))
+    speed_max = float(t.get("speed_max", 260.0))
+    pre_timeout = int(t.get("precharge_timeout_ms", 3000))
+    pre_auto_done = int(t.get("precharge_auto_done_ms", 500))
+    soc_window = int(t.get("soc_smoothing_window", 5))
+    rg_engage = float(t.get("readygo_speed_engage_kmh", 0.5))
+    rg_disengage = float(t.get("readygo_speed_disengage_kmh", 5.0))
+
+    return f"""// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
+// ⚠️ 请勿手动修改，修改请改 config/vehicle_thresholds.yaml
+//
+// v3 探针产物: 把车辆业务阈值从 C++ 硬编码移入 yaml, 改阈值不碰 cpp
+// 字段含义见 config/vehicle_thresholds.yaml 注释
+//
+// 符号发射 2 个必要条件:
+// 1. `extern` — C++ 中 namespace scope `const` 缺省是 internal linkage
+//    (符号被 mangle 为 _ZL... 而 header 里 `extern const` 期待 external linkage, 会链接失败)
+// 2. __attribute__((used)) — 否则 GCC -O3/-flto 会把未被本 TU 引用的 const 优化掉
+
+#include "vehicle_logic.h"
+
+__attribute__((used)) extern const VehicleConfigDef kDefaultVehicleConfig = {{
+    /*  soc_warning_low           */ {soc_warn!r}f,
+    /*  soc_critical_low          */ {soc_crit!r}f,
+    /*  speed_max                 */ {speed_max!r}f,
+    /*  precharge_timeout_ms      */ static_cast<uint32_t>({pre_timeout}),
+    /*  soc_smoothing_window      */ {soc_window},
+    /*  precharge_auto_done_ms    */ static_cast<uint32_t>({pre_auto_done}),
+    /*  readygo_speed_engage_kmh  */ {rg_engage!r}f,
+    /*  readygo_speed_disengage_kmh */ {rg_disengage!r}f,
+}};
+"""
+
+
 def gen_signal_def_h(signal_data: Dict) -> str:
     """生成 signal_def.h"""
     return """// ⚠️ 此文件由 tools/yaml_to_c.py 自动生成
@@ -476,6 +542,7 @@ def generate_all():
     seat_data = load_yaml("seat_belt.yaml")
     indicator_data = load_yaml("indicators.yaml")
     signal_data = load_yaml("can_signal_status.yaml")
+    threshold_data = load_yaml("vehicle_thresholds.yaml")  # v3 探针
 
     SRC_GENERATED.mkdir(parents=True, exist_ok=True)
     print(f"Generating files in {SRC_GENERATED}...")
@@ -501,6 +568,8 @@ def generate_all():
         ("indicator_table.cpp", indicator_data),
         ("signal_def.h", None),
         ("signal_table.cpp", signal_data),
+        ("vehicle_config.h", threshold_data),  # v3 探针
+        ("vehicle_config.cpp", threshold_data),  # v3 探针
     ]
 
     generators = {
@@ -514,6 +583,8 @@ def generate_all():
         "indicator_table.cpp": lambda d: gen_indicator_table_c(d),
         "signal_def.h": lambda _: gen_signal_def_h(signal_data),
         "signal_table.cpp": lambda d: gen_signal_table_c(d),
+        "vehicle_config.h": lambda d: gen_vehicle_config_h(d),  # v3 探针
+        "vehicle_config.cpp": lambda d: gen_vehicle_config_c(d),  # v3 探针
     }
 
     for fname, data in files_generated:

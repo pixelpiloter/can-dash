@@ -1,0 +1,30 @@
+# 车辆业务阈值配置 (v3 探针)
+# 验证 "配置驱动" 在本项目可行 — 改阈值/状态机参数不碰 C++
+# 所有字段都是编译期常量 (通过 yaml_to_c.py → generated/vehicle_config.cpp)
+#
+# v3 探针范围:
+#   - 5 个原 VehicleConfigDef 字段 (soc_warning_low / soc_critical_low / speed_max /
+#     precharge_timeout_ms / soc_smoothing_window)
+#   - 3 个 tick() 内的魔数 (precharge_auto_done_ms / readygo_speed_engage_kmh /
+#     readygo_speed_disengage_kmh)
+# 之前 3 个魔数硬编码在 vehicle_logic.cpp tick() 内, 调阈值要改 cpp + 重编译
+
+vehicle_thresholds:
+  # ── SOC 告警阈值 (单位: %) ─────────────────────────────
+  soc_warning_low: 10.0          # < 此值触发低电量告警
+  soc_critical_low: 5.0          # < 此值触发严重告警
+
+  # ── 车速限制 (单位: km/h) ──────────────────────────────
+  speed_max: 260.0               # 表盘满量程 (数据校验上限)
+
+  # ── 预充电状态机 (单位: ms) ────────────────────────────
+  precharge_timeout_ms: 3000     # 超过此时间未完成 → PRECHARGE_FAILED
+  precharge_auto_done_ms: 500    # 简化逻辑: 预充电 N ms 后自动 DONE
+                                  # (实车应等 BMS 确认信号, 此处是模拟)
+
+  # ── SOC 平滑窗口 ───────────────────────────────────────
+  soc_smoothing_window: 5        # 滑动平均样本数 (1-10)
+
+  # ── ReadyGo 速度阈值 (单位: km/h) ─────────────────────
+  readygo_speed_engage_kmh: 0.5  # 车速 < 此值 且 预充电完成 → 显示 ReadyGo
+  readygo_speed_disengage_kmh: 5.0  # 车速 > 此值 → 关闭 ReadyGo
