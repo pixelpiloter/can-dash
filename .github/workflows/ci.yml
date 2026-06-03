@@ -81,7 +81,7 @@ jobs:
             test_event_bus test_vehicle_logic test_indicator_runtime \
             test_can_signal_monitor test_shm_display test_time_util \
             test_transport test_self_test_runtime test_perf_baseline \
-            test_theme_manager \
+            test_theme_manager test_warning_manager test_settings_manager \
             --parallel -j$(nproc)
           # PR5 Layer 3 测试在 Qt6 可用时注册（CI 默认没装 Qt，跳过）
       - name: Run tests

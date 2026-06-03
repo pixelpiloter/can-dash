@@ -190,6 +190,20 @@ target_include_directories(test_theme_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME ThemeManagerTest COMMAND test_theme_manager)
 
+# WarningManager: 警告聚合/去重/历史 — 纯 C++, 无 Qt
+add_executable(test_warning_manager tests/test_warning_manager.cpp
+    ${LAYER2_DIR}/warning_manager.cpp)
+target_include_directories(test_warning_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME WarningManagerTest COMMAND test_warning_manager)
+
+# SettingsManager: 用户偏好设置 (单位/亮度) — 纯 C++, 无 Qt
+add_executable(test_settings_manager tests/test_settings_manager.cpp
+    ${LAYER2_DIR}/settings_manager.cpp)
+target_include_directories(test_settings_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME SettingsManagerTest COMMAND test_settings_manager)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE
