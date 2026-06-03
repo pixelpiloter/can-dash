@@ -42,6 +42,13 @@ bool ShmDataSource::start() {
         qDebug() << "[ShmDataSource] Opened shm at" << SHM_DISPLAY_PATH;
     }
 
+    // ─── 启动时初始化 ThemeManager 时间基线 (PR 16 PR-B 跟进 PR 15) ───
+    // PR 15 让 tick(now_ms) 真正闭环推算 hour, 但需要先 setTimeBaseline
+    // 设基线. start() 只在首次启动时执行 (上面 m_running 守卫), 不会重复
+    // 设基线 (避免 monotonic 漂移导致 m_baselineMs 反复更新).
+    m_theme.setTimeBaseline(candash::wall_clock_hour(),
+                            candash::now_monotonic_ms());
+
     // 启动 16ms 定时器
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &ShmDataSource::onTick);

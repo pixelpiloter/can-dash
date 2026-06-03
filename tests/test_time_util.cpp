@@ -68,6 +68,33 @@ void test_format_wall_clock_handles_small_buffer() {
     std::printf("  wall_clock with 8-byte buf: '%s' (no overrun, OK)\n", tiny);
 }
 
+void test_wall_clock_hour_in_range() {
+    // PR 16: wall_clock_hour() 返回 0-23 (本地时区). 用于 ThemeManager
+    // AUTO 模式时间基线. 失败 (clock_gettime/localtime_r) 时返回 0.
+    const uint8_t h = candash::wall_clock_hour();
+    if (h > 23) {
+        std::fprintf(stderr, "wall_clock_hour out of range: %u\n",
+                     static_cast<unsigned>(h));
+        std::abort();
+    }
+    // 跟 ISO-8601 字符串里的小时段对比, 确认路径一致
+    char buf[64] = {0};
+    candash::format_wall_clock(buf, sizeof(buf));
+    // buf 形如 "2026-06-04T12:34:56.789Z", 第 11-12 字符是 hour
+    if (std::strlen(buf) >= 12) {
+        const int iso_h = (buf[11] - '0') * 10 + (buf[12] - '0');
+        // 允许 ±1 (跨整点时调用两个函数间可能跳秒)
+        const int diff = (iso_h - static_cast<int>(h) + 24) % 24;
+        if (diff > 1 && diff < 23) {
+            std::fprintf(stderr, "wall_clock_hour=%u but ISO='%s' hour=%d\n",
+                         static_cast<unsigned>(h), buf, iso_h);
+            std::abort();
+        }
+    }
+    std::printf("  wall_clock_hour=%u (in 0..23, matches ISO '%s')\n",
+                static_cast<unsigned>(h), buf);
+}
+
 }  // namespace
 
 int main() {
@@ -76,6 +103,7 @@ int main() {
     test_monotonic_us_resolution();
     test_format_wall_clock_iso8601();
     test_format_wall_clock_handles_small_buffer();
+    test_wall_clock_hour_in_range();
     std::printf("ALL PASS\n");
     return 0;
 }

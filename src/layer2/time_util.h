@@ -16,4 +16,8 @@ uint64_t now_monotonic_us(void);
 // buf 至少 32 字节
 void format_wall_clock(char* buf, size_t buf_len);
 
+// 取 wall clock 当前小时 (0-23, 本地时区). 失败返回 0.
+// 用作 ThemeManager AUTO 模式时间基线 (PR 16 PR-B 跟进 PR 15).
+uint8_t wall_clock_hour(void);
+
 }  // namespace candash

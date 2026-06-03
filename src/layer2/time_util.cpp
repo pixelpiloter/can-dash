@@ -31,4 +31,19 @@ void format_wall_clock(char* buf, size_t buf_len) {
              ts.tv_nsec / 1000000);
 }
 
+uint8_t wall_clock_hour(void) {
+    // 跟 format_wall_clock 同一路径 (CLOCK_REALTIME + localtime_r),
+    // 取出 tm_hour 即可. localtime_r 失败时 tm 字段未定义, 兜底返回 0
+    // (ThemeManager normalizeHour 会把 0 当合法值, 不会 panic).
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        return 0;
+    }
+    struct tm tm_buf;
+    if (localtime_r(&ts.tv_sec, &tm_buf) == nullptr) {
+        return 0;
+    }
+    return static_cast<uint8_t>(tm_buf.tm_hour);
+}
+
 }  // namespace candash
