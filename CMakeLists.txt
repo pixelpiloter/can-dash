@@ -211,6 +211,13 @@ target_include_directories(test_view_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME ViewManagerTest COMMAND test_view_manager)
 
+# ChimeManager: 声音提示 (severity 映射/防抖/静音/音量) — 纯 C++, 无 Qt
+add_executable(test_chime_manager tests/test_chime_manager.cpp
+    ${LAYER2_DIR}/chime_manager.cpp)
+target_include_directories(test_chime_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME ChimeManagerTest COMMAND test_chime_manager)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE
