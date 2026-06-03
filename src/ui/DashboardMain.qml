@@ -303,6 +303,12 @@ ApplicationWindow {
         width: 320; height: 110
     }
 
+    // 活动告警列表面板 (PR 18: WarningManager QML 端展示, 数据来源 PR 9)
+    WarningPanel {
+        x: 1370; y: 595
+        width: 320; height: 100
+    }
+
     // ─── 报警横幅（z=9999，最高层）───
     AlarmBanner {
         id: alarmBanner
