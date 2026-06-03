@@ -83,6 +83,16 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(int viewGear READ viewGear NOTIFY viewChanged)
     Q_PROPERTY(int viewCharge READ viewCharge NOTIFY viewChanged)
 
+    // ─── ChimeManager (PR 14) — 共享 chimeChanged(), 5 字段同发同更 ───
+    // QML 端按 has_active 决定是否播放音效, freq/duration/repeat 给 QSoundEffect 用
+    // 注: enabled/volume 是配置 (QML 写入), 跟 chimeActive 等状态 (ShmDataSource 推) 走不同 setter
+    Q_PROPERTY(bool chimeActive READ chimeActive NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeSeverity READ chimeSeverity NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeFrequencyHz READ chimeFrequencyHz NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeDurationMs READ chimeDurationMs NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeRepeatCount READ chimeRepeatCount NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeVolumePct READ chimeVolumePct NOTIFY chimeChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -149,6 +159,14 @@ public:
     int  viewGear() const     { return static_cast<int>(m_viewGear); }    // 0=P, 1=R, 2=N, 3=D, 4=S
     int  viewCharge() const   { return static_cast<int>(m_viewCharge); }  // 0=idle, 1+=charging
 
+    // 声音 (PR 14) — 透传到 ShmDataSource.m_chime
+    bool chimeActive() const        { return m_chimeActive; }
+    int  chimeSeverity() const      { return static_cast<int>(m_chimeSeverity); }
+    int  chimeFrequencyHz() const   { return static_cast<int>(m_chimeFrequencyHz); }
+    int  chimeDurationMs() const    { return static_cast<int>(m_chimeDurationMs); }
+    int  chimeRepeatCount() const   { return static_cast<int>(m_chimeRepeatCount); }
+    int  chimeVolumePct() const     { return static_cast<int>(m_chimeVolumePct); }
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -171,6 +189,7 @@ signals:
     void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
     void settingsChanged();  // PR 13: settingsUnits/brightness 任一变化
     void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
+    void chimeChanged();     // PR 14: chimeActive/severity/freq/duration/repeat/volume 任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -243,6 +262,16 @@ private:
     uint8_t m_viewGear   = 0;    // 0=P, 1=R, 2=N, 3=D, 4=S
     uint8_t m_viewCharge = 0;    // 0=idle, 1+=charging
     uint8_t _m_viewPad   = 0;
+
+    // 声音 (PR 14) — 由 ShmDataSource 推过来, 缓存到这些字段
+    // chimeActive=0 时其他字段为 0 (清空) 或上次值 (QML 端按 chimeActive 过滤)
+    bool    m_chimeActive      = false;
+    uint8_t m_chimeSeverity    = 0;   // 0=INFO, 1=WARNING, 2=CRITICAL
+    uint8_t _m_chimePad0[1]    = {0};
+    uint16_t m_chimeFrequencyHz = 0;
+    uint16_t m_chimeDurationMs  = 0;
+    uint8_t  m_chimeRepeatCount = 0;
+    uint8_t  m_chimeVolumePct   = 80;  // 默认 80 (跟 L2 ChimeManager::kDefaultConfig 对齐)
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;

@@ -208,6 +208,43 @@ void ShmDataSource::onTick() {
     next.settings_units      = ss.units;
     next.settings_brightness = ss.brightness;
 
+    // ─── 4.9. ChimeManager (PR 14) ───
+    // 桥接 m_warning 当前 max severity → m_chime.onWarningTriggered() (防抖由 ChimeManager 自己管)
+    // 推断当前 max severity: m_active[0] 是最严重的 (按 priority 升序排序, severity 字段已映射)
+    // 用 active[0].severity 而非 hasCritical()/activeCount() > 0, 避免把 INFO 误判成 WARNING
+    {
+        uint8_t cur_sev = 0;  // 默认 INFO (静默)
+        const auto& active = m_warning.activeWarnings();
+        if (!active.empty()) {
+            cur_sev = active[0].severity;  // 0=INFO, 1=WARNING, 2=CRITICAL
+        }
+        // severity 升级 (新告警出现) → 触发 chime; 降级/同等级不重复触发
+        // 降级由 ChimeManager 内部 cooldown 管理, 这里只负责 "新事件" 通知
+        if (cur_sev > m_lastChimeSeverity) {
+            m_chime.onWarningTriggered(static_cast<candash::WarningSeverity>(cur_sev),
+                                       static_cast<uint64_t>(shm.last_commit_ms));
+        }
+        m_lastChimeSeverity = cur_sev;
+    }
+    // tick 推进 chime.end_ms 超期清除
+    m_chime.tick(static_cast<uint64_t>(shm.last_commit_ms));
+    // 复制 chime 状态到 snapshot (L3 镜像 L2 ChimeEvent, 避免 DisplaySnapshot 跨层 include L2 header)
+    // volume_pct 总是 m_chime.volume() (当前配置), 而非 m_activeChime.volume_pct (frozen at creation)
+    // 这样 QML 端调 setChimeVolume() 后下次 tick 立即看到新音量, 不必等下一次触发
+    {
+        std::memset(&next.chime, 0, sizeof(DisplayChimeState));
+        next.chime.volume_pct = m_chime.volume();  // 当前配置 (slider 立即反映)
+        if (m_chime.hasActiveChime()) {
+            const candash::ChimeEvent& ce = m_chime.activeChime();
+            next.chime.has_active   = 1;
+            next.chime.severity     = ce.severity;
+            next.chime.frequency_hz = ce.frequency_hz;
+            next.chime.duration_ms  = ce.duration_ms;
+            next.chime.repeat_count = ce.repeat_count;
+            next.chime.end_ms       = ce.end_ms;
+        }
+    }
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -338,3 +375,18 @@ void ShmDataSource::setViewGearChargeForTest(uint8_t gear, uint8_t charge) {
 }
 void ShmDataSource::tickViewForTest(uint64_t now_ms)    { m_view.tick(now_ms); }
 void ShmDataSource::resetViewForTest()                   { m_view.reset(); }
+
+// ─── ChimeManager setter 实现 (PR 14, QML 端切换静音/音量) ───
+// 非 inline, 避免 m_chime 类内引用未声明的顺序依赖
+// 注: setChimeEnabled/Volume 不重置 m_lastChimeSeverity, 让 QML 端调整后
+//     下次 16ms tick 仍能正确触发新 chime (假设告警仍在)
+void ShmDataSource::setChimeEnabledForTest(bool enabled) {
+    m_chime.setEnabled(enabled);
+}
+void ShmDataSource::setChimeVolumeForTest(uint8_t pct) {
+    m_chime.setVolume(pct);  // ChimeManager.setVolume 内部 clamp 到 [0,100]
+}
+void ShmDataSource::resetChimeForTest() {
+    m_chime.reset();
+    m_lastChimeSeverity = 0;  // 重置防抖 baseline, 避免 reset 后无法触发新 chime
+}

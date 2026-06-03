@@ -301,4 +301,14 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
     target_link_libraries(test_dashboard_backend PRIVATE Qt6::Core)
     add_test(NAME DashboardBackendTest COMMAND test_dashboard_backend)
+
+    # ChimeManager 数据流集成 (PR 14): ShmDataSource::onTick 桥接 warning→chime
+    add_executable(test_chime_data_flow tests/test_chime_data_flow.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER2_DIR}/time_util.cpp)
+    target_include_directories(test_chime_data_flow PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+    target_link_libraries(test_chime_data_flow PRIVATE Qt6::Core)
+    add_test(NAME ChimeDataFlowTest COMMAND test_chime_data_flow)
 endif()

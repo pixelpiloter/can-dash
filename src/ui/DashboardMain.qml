@@ -297,6 +297,12 @@ ApplicationWindow {
         width: 320; height: 100
     }
 
+    // 声音提示面板 (PR 14: ChimeManager 数据流, 状态显示 + 静音/音量)
+    ChimePanel {
+        x: 1040; y: 700
+        width: 320; height: 110
+    }
+
     // ─── 报警横幅（z=9999，最高层）───
     AlarmBanner {
         id: alarmBanner

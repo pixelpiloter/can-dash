@@ -15,6 +15,7 @@
 #include "layer2/warning_manager.h"   // 警告 (PR 9)
 #include "layer2/view_manager.h"      // 视图模式 (PR 13)
 #include "layer2/settings_manager.h"  // 用户偏好 (PR 13)
+#include "layer2/chime_manager.h"     // 声音提示 (PR 14)
 #include <QTimer>
 #include <QObject>
 #include <atomic>
@@ -75,6 +76,12 @@ public:
     void setSettingsBrightnessForTest(uint8_t pct);  // 0-100, 自动 clamp
     void resetSettingsForTest();
 
+    // ─── ChimeManager setter (PR 14, QML 端切换静音/音量) ───
+    // 非 inline, .cpp 实现 — 避开 "m_chime 在类内引用未声明" 顺序依赖
+    void setChimeEnabledForTest(bool enabled);
+    void setChimeVolumeForTest(uint8_t pct);  // 0-100, 自动 clamp
+    void resetChimeForTest();
+
 private slots:
     void onTick();
 
@@ -112,6 +119,14 @@ private:
     // SettingsManager (PR 13) — 状态由 ShmDataSource 唯一持有, binder 只读透传
     // settings 不随时间漂移 (tick no-op), 但保留 16ms 节奏以跟数据流同步
     candash::SettingsManager m_settings;
+
+    // ChimeManager (PR 14) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    // onTick 里桥接 m_warning.currentSeverity() → m_chime.onWarningTriggered()
+    // tick 推进 chime.end_ms 超期清除, 跟 shm commit 时间戳同步
+    candash::ChimeManager m_chime;
+    // 防抖上次触发 severity (避免 onTick 16ms 重复触发同 severity)
+    // 0=INFO (静默, 不需触发), 1=WARNING, 2=CRITICAL
+    uint8_t  m_lastChimeSeverity = 0;
 
     // 回调
     UpdateCallback m_updateCb;

@@ -143,6 +143,14 @@ bool  DashboardBackend::isChargeView() const              { return m_qtBinder &&
 int   DashboardBackend::viewGear() const                  { return m_qtBinder ? m_qtBinder->viewGear()     : 0; }
 int   DashboardBackend::viewCharge() const                { return m_qtBinder ? m_qtBinder->viewCharge()   : 0; }
 
+// 声音 getter 透传 (PR 14)
+bool DashboardBackend::chimeActive() const                { return m_qtBinder && m_qtBinder->chimeActive(); }
+int  DashboardBackend::chimeSeverity() const              { return m_qtBinder ? m_qtBinder->chimeSeverity()     : 0; }
+int  DashboardBackend::chimeFrequencyHz() const           { return m_qtBinder ? m_qtBinder->chimeFrequencyHz()  : 0; }
+int  DashboardBackend::chimeDurationMs() const            { return m_qtBinder ? m_qtBinder->chimeDurationMs()   : 0; }
+int  DashboardBackend::chimeRepeatCount() const           { return m_qtBinder ? m_qtBinder->chimeRepeatCount()  : 0; }
+int  DashboardBackend::chimeVolumePct() const             { return m_qtBinder ? m_qtBinder->chimeVolumePct()    : 80; }
+
 void DashboardBackend::resetTrip() {
     // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界
     if (m_shmSource) m_shmSource->resetTripForTest();
@@ -172,6 +180,17 @@ void DashboardBackend::setSettingsBrightness(int pct) {
 }
 void DashboardBackend::resetSettings() {
     if (m_shmSource) m_shmSource->resetSettingsForTest();
+}
+
+// 声音 (PR 14) — 透传到 ShmDataSource.m_chime, 下次 16ms tick 自动反映到 QML
+void DashboardBackend::setChimeEnabled(bool enabled) {
+    if (m_shmSource) m_shmSource->setChimeEnabledForTest(enabled);
+}
+void DashboardBackend::setChimeVolume(int pct) {
+    if (m_shmSource) m_shmSource->setChimeVolumeForTest(static_cast<uint8_t>(pct));
+}
+void DashboardBackend::resetChime() {
+    if (m_shmSource) m_shmSource->resetChimeForTest();
 }
 
 QVariant DashboardBackend::get(const QString& key) const { return m_qtBinder ? m_qtBinder->get(key) : QVariant(); }

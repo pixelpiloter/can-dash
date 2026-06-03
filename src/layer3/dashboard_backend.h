@@ -76,6 +76,14 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(int viewGear READ viewGear NOTIFY viewChanged)
     Q_PROPERTY(int viewCharge READ viewCharge NOTIFY viewChanged)
 
+    // 声音 (PR 14) — 透传到 QtDataBinder (QML 端按 chimeActive 触发音效)
+    Q_PROPERTY(bool chimeActive READ chimeActive NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeSeverity READ chimeSeverity NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeFrequencyHz READ chimeFrequencyHz NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeDurationMs READ chimeDurationMs NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeRepeatCount READ chimeRepeatCount NOTIFY chimeChanged)
+    Q_PROPERTY(int  chimeVolumePct READ chimeVolumePct NOTIFY chimeChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -139,6 +147,14 @@ public:
     int  viewGear() const;
     int  viewCharge() const;
 
+    // 声音 (PR 14) — 透传到 QtDataBinder
+    bool chimeActive() const;
+    int  chimeSeverity() const;
+    int  chimeFrequencyHz() const;
+    int  chimeDurationMs() const;
+    int  chimeRepeatCount() const;
+    int  chimeVolumePct() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
@@ -154,6 +170,10 @@ public:
     Q_INVOKABLE void setSettingsUnits(int units);       // 0=METRIC, 1=IMPERIAL
     Q_INVOKABLE void setSettingsBrightness(int pct);    // 0-100, 自动 clamp
     Q_INVOKABLE void resetSettings();
+    // 声音 (PR 14): 透传到 ShmDataSource.m_chime, 下次 16ms tick 自动反映到 QML
+    Q_INVOKABLE void setChimeEnabled(bool enabled);    // 全局静音开关
+    Q_INVOKABLE void setChimeVolume(int pct);          // 0-100, 自动 clamp
+    Q_INVOKABLE void resetChime();
 
 signals:
     void displayDataChanged();
@@ -169,6 +189,7 @@ signals:
     void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
     void settingsChanged();  // PR 13: settingsUnits/brightness 任一变化
     void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
+    void chimeChanged();     // PR 14: chimeActive/severity/freq/duration/repeat/volume 任一变化
 
 private:
     std::unique_ptr<IDataSource> m_source;

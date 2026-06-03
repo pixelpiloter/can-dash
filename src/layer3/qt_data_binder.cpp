@@ -147,6 +147,19 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (s.view_gear    != m_viewGear)   { m_viewGear   = s.view_gear;    viewDirty = true; }
     if (s.view_charge  != m_viewCharge) { m_viewCharge = s.view_charge;  viewDirty = true; }
     if (viewDirty) emit viewChanged();
+
+    // ─── 12. 声音 (PR 14) — chime state, 6 字段共享 chimeChanged() ───
+    // chimeActive 是主开关: false 时其他字段清零, QML 端按 chimeActive 决定播放
+    // chimeVolumePct 总是最新 (即使 active=false, QML 端调音量滑条也希望立即反映)
+    bool chimeDirty = false;
+    const bool newActive = (s.chime.has_active != 0);
+    if (newActive != m_chimeActive) { m_chimeActive = newActive; chimeDirty = true; }
+    if (s.chime.severity     != m_chimeSeverity)     { m_chimeSeverity     = s.chime.severity;     chimeDirty = true; }
+    if (s.chime.frequency_hz != m_chimeFrequencyHz) { m_chimeFrequencyHz = s.chime.frequency_hz; chimeDirty = true; }
+    if (s.chime.duration_ms  != m_chimeDurationMs)  { m_chimeDurationMs  = s.chime.duration_ms;  chimeDirty = true; }
+    if (s.chime.repeat_count != m_chimeRepeatCount) { m_chimeRepeatCount = s.chime.repeat_count; chimeDirty = true; }
+    if (s.chime.volume_pct   != m_chimeVolumePct)   { m_chimeVolumePct   = s.chime.volume_pct;   chimeDirty = true; }
+    if (chimeDirty) emit chimeChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

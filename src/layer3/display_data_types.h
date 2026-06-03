@@ -98,6 +98,21 @@ typedef struct {
 } DisplayActiveWarning;
 #define DISPLAY_WARNING_MAX 8
 
+// ─── ChimeManager (PR 14) ───
+// L3 镜像 L2 ChimeEvent (字段一致, 避免 DisplaySnapshot 跨层 include L2 header)
+// 由 ShmDataSource 在 onTick() 中从 m_chime.activeChime() 复制填入
+// has_active=0 时其他字段无意义 (QML 端按 has_active 决定是否播放)
+typedef struct {
+    uint8_t  has_active;        // 0/1, 是否当前有 active chime 在播放
+    uint8_t  severity;          // 0=INFO, 1=WARNING, 2=CRITICAL (跟 L2 WarningSeverity 一致)
+    uint16_t frequency_hz;      // 800/1000/1500 等
+    uint16_t duration_ms;       // 单次播放时长 100-500
+    uint8_t  repeat_count;      // 1-3 (重播次数)
+    uint8_t  volume_pct;        // 0-100, 已 clamp
+    uint8_t  _chime_pad[3];     // 对齐到 4 字节
+    uint64_t end_ms;            // monotonic ms, 播放结束 (跟 L2 ChimeEvent.end_ms 一致)
+} DisplayChimeState;
+
 // ─── 完整数据快照（DataSource 推送给 Binder 的数据结构）───
 typedef struct {
     DisplayData      data;            // 28 业务字段
@@ -158,6 +173,12 @@ typedef struct {
     uint8_t              settings_units;       // 0=METRIC, 1=IMPERIAL
     uint8_t              settings_brightness;  // 0-100, 已 clamp
     uint8_t              _settings_pad[2];     // 对齐到 4 字节边界
+
+    // ─── ChimeManager (PR 14) ───
+    // 声音提示状态: 由 ShmDataSource 在 onTick() 中从 m_chime 复制填入
+    // has_active=1 时 QML 端播放对应 frequency/duration/repeat 音效
+    // 实际播放需要 QtMultimedia (暂用 QSoundEffect / console beep 占位)
+    DisplayChimeState    chime;                 // 单一字段, 避免数组
 } DisplaySnapshot;
 
 #ifdef __cplusplus
