@@ -291,10 +291,15 @@ ApplicationWindow {
         sourceValue: dashboard.displayData["motor_rpm"] || 0
     }
 
-    // 派生指标面板（4 个指标：平均速度/累计里程/百公里电耗/续航可信度）
+    // 派生指标面板 — QML 端自算 (左侧，参考实现)
     DerivedMetrics {
         x: 1040; y: 595
-        width: 440; height: 85
+        width: 220; height: 85
+    }
+    // 派生指标面板 — C++ TripComputer (右侧，数据流优先)
+    TripPanel {
+        x: 1270; y: 595
+        width: 220; height: 90
     }
 
     // ─── 报警横幅（z=9999，最高层）───
