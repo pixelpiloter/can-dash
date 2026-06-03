@@ -309,6 +309,13 @@ ApplicationWindow {
         width: 320; height: 100
     }
 
+    // 用户偏好设置面板 (PR 19: SettingsManager QML 端入口, 数据来源 PR 13)
+    // 3 段横向: UNITS 切换 / BRIGHT 循环 / RESET — 紧凑状态条样式
+    SettingsPanel {
+        x: 1370; y: 700
+        width: 320; height: 20
+    }
+
     // ─── 报警横幅（z=9999，最高层）───
     AlarmBanner {
         id: alarmBanner
