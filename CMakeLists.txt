@@ -204,6 +204,13 @@ target_include_directories(test_settings_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME SettingsManagerTest COMMAND test_settings_manager)
 
+# ViewManager: 视图模式状态机 (驾驶/充电/驻车) — 纯 C++, 无 Qt
+add_executable(test_view_manager tests/test_view_manager.cpp
+    ${LAYER2_DIR}/view_manager.cpp)
+target_include_directories(test_view_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
+add_test(NAME ViewManagerTest COMMAND test_view_manager)
+
 add_executable(test_indicator_runtime tests/test_indicator_runtime.cpp
     ${LAYER2_TEST_SOURCES} ${GENERATED_SOURCES})
 target_include_directories(test_indicator_runtime PRIVATE
