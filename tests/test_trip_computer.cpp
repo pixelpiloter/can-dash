@@ -116,6 +116,80 @@ static void test_time_jump_clamped() {
            t.tripDistanceKm());
 }
 
+// ─── 集成测试: 模拟 ShmDataSource 16ms tick 节奏 ───
+// 这些测试不直接调 ShmDataSource (那需要 Qt), 但用相同节奏 (16ms/tick)
+// 调 TripComputer, 验证 L2 类在真实使用模式下的行为.
+static void test_city_driving_pattern() {
+    printf("\n[测试9] 城市驾驶模式: 启停启停 60s\n");
+    TripComputer t;
+    t.tick(0, 0.0f);  // baseline
+    // 60s 内: 起步 (5s) → 巡航 40km/h (20s) → 红灯 (10s) → 起步 → 巡航 (15s) → 停车
+    const int TICKS = 3750;  // 60s / 16ms
+    for (int i = 1; i <= TICKS; i++) {
+        const uint64_t t_ms = static_cast<uint64_t>(i) * 16;
+        float speed = 0.0f;
+        if (t_ms < 5000) speed = 40.0f * (static_cast<float>(t_ms) / 5000.0f);  // 0→40 加速
+        else if (t_ms < 25000) speed = 40.0f;                                   // 巡航
+        else if (t_ms < 35000) speed = 40.0f * (1.0f - static_cast<float>(t_ms - 25000) / 10000.0f);  // 40→0
+        else if (t_ms < 45000) speed = 0.0f;                                    // 停车
+        else if (t_ms < 50000) speed = 30.0f * (static_cast<float>(t_ms - 45000) / 5000.0f);  // 起步 0→30
+        else speed = 30.0f;                                                     // 短巡航
+        t.tick(t_ms, speed);
+    }
+    // 估算: 加速段 (0→40, 5s) ≈ 0.028 km
+    //       巡航 40kmh × 20s ≈ 0.222 km
+    //       减速 40→0 (10s) ≈ 0.056 km
+    //       停车不计
+    //       加速 0→30 (5s) ≈ 0.021 km
+    //       巡航 30kmh × 10s ≈ 0.083 km
+    // 合计 ≈ 0.41 km
+    assert(t.tripDistanceKm() > 0.35f && t.tripDistanceKm() < 0.5f);
+    // 行驶时长 ≈ 55s (停 10s 不计)
+    assert(t.tripDurationS() >= 50 && t.tripDurationS() <= 60);
+    printf("  ✓ 60s 城市驾驶: distance=%.3fkm, duration=%us, avg=%.1fkmh\n",
+           t.tripDistanceKm(), t.tripDurationS(), t.tripAvgSpeedKmh());
+}
+
+static void test_highway_steady_5min() {
+    printf("\n[测试10] 高速 100 km/h 匀速 5 分钟 = 8.333 km\n");
+    TripComputer t;
+    t.tick(0, 100.0f);
+    // 5min = 300s = 18750 ticks × 16ms
+    const int TICKS = 18750;
+    for (int i = 1; i <= TICKS; i++) {
+        t.tick(static_cast<uint64_t>(i) * 16, 100.0f);
+    }
+    // 100 km/h × 300s = 100 × 300/3600 = 8.333 km
+    assert(t.tripDistanceKm() > 8.32f && t.tripDistanceKm() < 8.34f);
+    assert(t.tripDurationS() == 300);
+    assert(t.tripAvgSpeedKmh() > 99.9f && t.tripAvgSpeedKmh() < 100.1f);
+    printf("  ✓ 100kmh × 5min: distance=%.3fkm, duration=%us, avg=%.1fkmh\n",
+           t.tripDistanceKm(), t.tripDurationS(), t.tripAvgSpeedKmh());
+}
+
+static void test_reset_mid_trip() {
+    printf("\n[测试11] reset() 中途清零, 后续正常累计\n");
+    TripComputer t;
+    t.tick(0, 60.0f);
+    // 跑 30s at 60 kmh = 0.5km
+    for (int i = 1; i <= 1875; i++) {
+        t.tick(static_cast<uint64_t>(i) * 16, 60.0f);
+    }
+    assert(t.tripDistanceKm() > 0.49f && t.tripDistanceKm() < 0.51f);
+    // reset
+    t.reset();
+    assert(t.tripDistanceKm() == 0.0f);
+    assert(t.tripDurationS() == 0);
+    // 再跑 30s, 应该正常累计 (不应把 0.5km 之前的 dt 算进来)
+    for (int i = 1; i <= 1875; i++) {
+        const uint64_t new_t_ms = 30 * 1000 + static_cast<uint64_t>(i) * 16;
+        t.tick(new_t_ms, 60.0f);
+    }
+    assert(t.tripDistanceKm() > 0.49f && t.tripDistanceKm() < 0.51f);
+    printf("  ✓ reset 后再跑 30s, distance=%.3fkm (重置前的 0.5km 不残留)\n",
+           t.tripDistanceKm());
+}
+
 int main() {
     printf("=== TripComputer 单元测试 ===\n");
     test_initial_state();
@@ -126,6 +200,9 @@ int main() {
     test_trapezoid_integration();
     test_reset();
     test_time_jump_clamped();
+    test_city_driving_pattern();
+    test_highway_steady_5min();
+    test_reset_mid_trip();
     printf("\n所有测试通过。\n");
     return 0;
 }
