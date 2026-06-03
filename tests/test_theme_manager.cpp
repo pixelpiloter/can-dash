@@ -11,6 +11,10 @@
 //   7. colors() DAY vs NIGHT 返回不同配色
 //   8. colorOf() 5 个 slot 都正确
 //   9. normalizeHour 处理负数 / 越界
+//  10. tick() AUTO 模式从 now_ms 推算 hour (PR 15 新增)
+//  11. tick() 跨 sunrise/sunset 边界
+//  12. tick() 24h 环绕 + 时间倒退防御
+//  13. setTimeBaseline() 设基线 + 立即触发 evaluate
 
 #include <cstdio>
 #include <cassert>
@@ -149,14 +153,117 @@ static void test_set_current_hour_triggers_re_eval() {
 static void test_tick_evaluates_auto() {
     ThemeManager t;
     t.setMode(ThemeMode::AUTO);
-    t.setCurrentHour(3);
+    t.setTimeBaseline(12, 0);  // baseline 12:00 @ ms=0
+    assert(t.currentHour() == 12);
+
+    // tick(0) → delta=0 → hour=12 → DAY
+    t.tick(0);
+    assert(t.isDay() == true);
+    assert(t.currentHour() == 12);
+
+    // tick(7h) → delta=7h → hour=19 → NIGHT
+    t.tick(7ULL * 3600 * 1000);
+    assert(t.isDay() == false);
+    assert(t.currentHour() == 19);
+    printf("  ✓ tick() 在 AUTO 模式从 now_ms 推算 hour\n");
+}
+
+static void test_tick_crosses_sunrise() {
+    ThemeManager t;
+    t.setMode(ThemeMode::AUTO);
+    t.setTimeBaseline(5, 0);  // 黎明前 baseline
+
+    // tick(0) → hour=5 → NIGHT
+    t.tick(0);
     assert(t.isDay() == false);
 
-    t.setCurrentHour(15);
-    // tick 在 AUTO 模式重新评估
-    t.tick(1000);
+    // tick(1h) → hour=6 → DAY (sunrise inclusive, [6,18))
+    t.tick(1ULL * 3600 * 1000);
     assert(t.isDay() == true);
-    printf("  ✓ tick() 在 AUTO 模式重新评估\n");
+    assert(t.currentHour() == 6);
+    printf("  ✓ tick() 跨 sunrise (5→6): NIGHT → DAY\n");
+}
+
+static void test_tick_crosses_sunset() {
+    ThemeManager t;
+    t.setMode(ThemeMode::AUTO);
+    t.setTimeBaseline(17, 0);  // 黄昏前 baseline
+
+    // tick(0) → hour=17 → DAY
+    t.tick(0);
+    assert(t.isDay() == true);
+
+    // tick(1h) → hour=18 → NIGHT (sunset exclusive, [6,18))
+    t.tick(1ULL * 3600 * 1000);
+    assert(t.isDay() == false);
+    assert(t.currentHour() == 18);
+    printf("  ✓ tick() 跨 sunset (17→18): DAY → NIGHT\n");
+}
+
+static void test_tick_24h_rollover() {
+    ThemeManager t;
+    t.setMode(ThemeMode::AUTO);
+    t.setTimeBaseline(22, 0);  // 22:00 baseline
+
+    // tick(0) → hour=22 → NIGHT
+    t.tick(0);
+    assert(t.isDay() == false);
+
+    // tick(3h) → hour=25%24=1 → NIGHT (凌晨 1 点)
+    t.tick(3ULL * 3600 * 1000);
+    assert(t.isDay() == false);
+    assert(t.currentHour() == 1);
+
+    // tick(5h 累计 8h) → hour=30%24=6 → DAY (跨 sunrise)
+    t.tick(5ULL * 3600 * 1000);
+    assert(t.isDay() == true);
+    assert(t.currentHour() == 6);
+    printf("  ✓ tick() 24h 环绕: 22→1→6, 正确判定 NIGHT/NIGHT/DAY\n");
+}
+
+static void test_tick_time_travel_defense() {
+    ThemeManager t;
+    t.setMode(ThemeMode::AUTO);
+    t.setTimeBaseline(12, 1000);  // 12:00 @ ms=1000
+
+    // tick(500) → now_ms < baselineMs → 按 delta=0, hour=12, DAY
+    // (时间倒退防御: 不让 now_ms < baselineMs 引发负 delta/UB)
+    t.tick(500);
+    assert(t.currentHour() == 12);
+    assert(t.isDay() == true);
+
+    // tick(1000) → 正好 baseline, hour=12
+    t.tick(1000);
+    assert(t.currentHour() == 12);
+    assert(t.isDay() == true);
+
+    // tick(1000+3h) → 15:00 → DAY
+    t.tick(1000 + 3ULL * 3600 * 1000);
+    assert(t.currentHour() == 15);
+    assert(t.isDay() == true);
+    printf("  ✓ tick() 时间倒退防御: now_ms<baselineMs → delta=0\n");
+}
+
+static void test_set_time_baseline_triggers_re_eval() {
+    ThemeManager t;
+    t.setMode(ThemeMode::AUTO);
+    // 初始 baseline (12, 0), hour=12 → DAY
+    assert(t.isDay() == true);
+    assert(t.baselineHour() == 12);
+    assert(t.baselineMs() == 0);
+
+    // 改 baseline 到 (19, 0) — AUTO 模式立即 evaluate → NIGHT
+    t.setTimeBaseline(19, 0);
+    assert(t.isDay() == false);
+    assert(t.baselineHour() == 19);
+    assert(t.baselineMs() == 0);
+
+    // 显式 DAY 模式下改 baseline 不会切 isDay
+    t.setMode(ThemeMode::DAY);
+    t.setTimeBaseline(2, 0);
+    assert(t.isDay() == true);  // DAY 强制覆盖
+    assert(t.baselineHour() == 2);
+    printf("  ✓ setTimeBaseline() 设基线 + 立即触发 evaluate (AUTO) / 不切 (显式)\n");
 }
 
 static void test_tick_no_op_in_explicit_mode() {
@@ -277,6 +384,11 @@ int main() {
     RUN(test_degenerate_sunrise_equals_sunset);
     RUN(test_set_current_hour_triggers_re_eval);
     RUN(test_tick_evaluates_auto);
+    RUN(test_tick_crosses_sunrise);
+    RUN(test_tick_crosses_sunset);
+    RUN(test_tick_24h_rollover);
+    RUN(test_tick_time_travel_defense);
+    RUN(test_set_time_baseline_triggers_re_eval);
     RUN(test_tick_no_op_in_explicit_mode);
     RUN(test_colors_differ_day_night);
     RUN(test_color_of_slots);

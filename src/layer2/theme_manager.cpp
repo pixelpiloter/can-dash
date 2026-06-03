@@ -55,11 +55,25 @@ void ThemeManager::setCurrentHour(uint8_t hour) {
     }
 }
 
-void ThemeManager::tick(uint64_t now_ms) {
-    (void)now_ms;  // 保留接口与 TripComputer 对齐 (后续 PR 可基于 ms 推算 hour)
+void ThemeManager::setTimeBaseline(uint8_t hour, uint64_t now_ms) {
+    m_baselineHour = normalizeHour(static_cast<int>(hour));
+    m_baselineMs = now_ms;
     if (m_mode == ThemeMode::AUTO) {
         evaluateAutoMode();
     }
+}
+
+void ThemeManager::tick(uint64_t now_ms) {
+    // 显式 DAY/NIGHT 模式: tick() no-op, 强制覆盖不变
+    if (m_mode != ThemeMode::AUTO) {
+        return;
+    }
+    // AUTO 模式: 从 baseline + (now_ms - baselineMs) 推算 hour
+    // 时间倒退防御: now_ms < baselineMs → 按 delta=0 处理 (避免负数/UB)
+    uint64_t effective_ms = (now_ms >= m_baselineMs) ? now_ms : m_baselineMs;
+    uint64_t delta_hours = (effective_ms - m_baselineMs) / 3600000ULL;
+    m_currentHour = static_cast<uint8_t>((m_baselineHour + delta_hours) % 24);
+    evaluateAutoMode();
 }
 
 void ThemeManager::evaluateAutoMode() {
@@ -98,6 +112,8 @@ void ThemeManager::reset() {
     m_sunriseHour = 6;
     m_sunsetHour = 18;
     m_currentHour = 12;
+    m_baselineHour = 12;
+    m_baselineMs = 0;
     m_isDay = true;
 }
 

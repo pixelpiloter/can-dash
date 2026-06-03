@@ -11,10 +11,14 @@
 // 设计要点 (PR-A: L2 + test, 不接数据流):
 //   - 状态机简单: mode 字段 + is_day 派生标志
 //   - tick() 不强制 16ms, 支持任意 dt, 测试可注入任意 (now_ms, hour)
-//   - setCurrentHourForTest() 注入时间, 不依赖 wall clock, 避免时区/测试抖动
-//   - 当前小时从 candash::now_monotonic_ms() 推算 (相对启动时间 + 启动时刻的小时)
-//     → 实际部署时可改读 /dev/rtc 或 NTP
-//   - 默认值: DAY (保守, 浅色背景文字对比好)
+//   - setCurrentHour() 手动注入 (测试 + 初始配置), 立即触发 evaluate (AUTO 模式)
+//   - tick(now_ms) 内部从 now_ms 推算 hour: hour = (baselineHour + (now_ms - baselineMs)/3600000) % 24
+//     → AUTO 模式真正闭环: ShmDataSource 16ms tick 推进, hour 实时跟随时间
+//     → 显式 DAY/NIGHT 模式 tick() no-op (强制覆盖不变)
+//   - setTimeBaseline(hour, ms) 设基线: 部署时 ShmDataSource 启动时调
+//     (用 wall clock hour + candash::now_monotonic_ms())
+//   - 时间倒退防御: now_ms < baselineMs → 按 delta=0 处理 (避免负数/UB)
+//   - 默认值: baseline (12:00, ms=0), 启动时为 DAY
 //
 // 复用现有模式 (参照 TripComputer):
 //   - 纯 C++ 类, 状态自包含, 无 Qt
@@ -69,8 +73,19 @@ public:
     void setCurrentHour(uint8_t hour);
     uint8_t currentHour() const { return m_currentHour; }
 
+    // ─── 时间基线 (tick 推算 hour 用) ───
+    // 设基线: 启动时 (baselineHour, baselineMs) = (wall clock hour, monotonic ms)
+    // tick(now_ms) → hour = (baselineHour + (now_ms - baselineMs)/3600000) % 24
+    // 默认 (12, 0): tick(0) = 12:00, tick(3.6M) = 13:00
+    // 重复调 = 重设基线 (ShmDataSource 启动时调一次即可)
+    void setTimeBaseline(uint8_t hour, uint64_t now_ms);
+    uint8_t baselineHour() const { return m_baselineHour; }
+    uint64_t baselineMs() const { return m_baselineMs; }
+
     // ─── tick ───
-    // 推进 (AUTO 模式重新评估). now_ms 当前未使用, 保留接口与 TripComputer 对齐
+    // AUTO 模式: 推算 hour = baseline + (now_ms - baselineMs)/3600000, 重新评估 DAY/NIGHT
+    // 显式 DAY/NIGHT 模式: no-op (isDay 不变)
+    // 时间倒退: now_ms < baselineMs → 按 delta=0 处理
     void tick(uint64_t now_ms);
 
     // ─── 颜色查询 ───
@@ -93,6 +108,8 @@ private:
     uint8_t   m_sunriseHour = 6;
     uint8_t   m_sunsetHour  = 18;
     uint8_t   m_currentHour = 12; // 默认中午, 启动时为 DAY
+    uint8_t   m_baselineHour = 12;  // tick() 推算 hour 用: 启动时刻的 wall clock hour
+    uint64_t  m_baselineMs   = 0;   // 启动时刻的 monotonic ms (默认 0 便于测试)
 };
 
 }  // namespace candash
