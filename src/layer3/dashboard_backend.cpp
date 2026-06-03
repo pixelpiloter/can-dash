@@ -35,10 +35,12 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::healthChanged, this, &DashboardBackend::healthChanged);
     connect(m_qtBinder, &QtDataBinder::dataHealthChanged, this, &DashboardBackend::dataHealthChanged);
     connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
+    connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
 
     // 业务注入
     m_binder = std::move(binder);
     m_source = std::move(source);
+    m_shmSource = dynamic_cast<ShmDataSource*>(m_source.get());
 
     // 连接 DataSource → Binder + 启动
     m_source->setUpdateCallback([this](const DisplaySnapshot& s) {
@@ -52,6 +54,7 @@ void DashboardBackend::init() {
 
 void DashboardBackend::setDataSource(std::unique_ptr<IDataSource> source) {
     m_source = std::move(source);
+    m_shmSource = dynamic_cast<ShmDataSource*>(m_source.get());
 
     // 连接 DataSource → Binder（任何 binder 都行）
     if (m_source && m_binder) {
@@ -79,6 +82,7 @@ void DashboardBackend::setDataBinder(std::unique_ptr<IDataBinder> binder) {
         connect(m_qtBinder, &QtDataBinder::healthChanged, this, &DashboardBackend::healthChanged);
         connect(m_qtBinder, &QtDataBinder::dataHealthChanged, this, &DashboardBackend::dataHealthChanged);
         connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
+        connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
     }
     m_binder = std::move(binder);
 }
@@ -100,6 +104,16 @@ qulonglong DashboardBackend::frameSeq() const { return m_qtBinder ? m_qtBinder->
 double DashboardBackend::dataFps() const { return m_qtBinder ? m_qtBinder->dataFps() : 0.0; }
 qulonglong DashboardBackend::droppedFrames() const { return m_qtBinder ? m_qtBinder->droppedFrames() : 0; }
 QVariantMap DashboardBackend::fieldValidity() const { return m_qtBinder ? m_qtBinder->fieldValidity() : QVariantMap(); }
+
+float DashboardBackend::tripDistanceKm() const   { return m_qtBinder ? m_qtBinder->tripDistanceKm()   : 0.0f; }
+float DashboardBackend::tripAvgSpeedKmh() const  { return m_qtBinder ? m_qtBinder->tripAvgSpeedKmh()  : 0.0f; }
+uint  DashboardBackend::tripDurationS() const    { return m_qtBinder ? m_qtBinder->tripDurationS()    : 0; }
+bool  DashboardBackend::tripIsMoving() const     { return m_qtBinder && m_qtBinder->tripIsMoving(); }
+
+void DashboardBackend::resetTrip() {
+    // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界
+    if (m_shmSource) m_shmSource->resetTripForTest();
+}
 
 QVariant DashboardBackend::get(const QString& key) const { return m_qtBinder ? m_qtBinder->get(key) : QVariant(); }
 void DashboardBackend::set(const QString& key, const QVariant& value) { if (m_qtBinder) m_qtBinder->set(key, value); }

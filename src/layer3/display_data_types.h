@@ -92,6 +92,14 @@ typedef struct {
     SeatBeltState    seat_belt;       // 安全带状态
     IndicatorStates  indicators;      // 指示灯状态
     bool             is_moving;       // vehicle_speed > 1.0 km/h
+
+    // ─── 派生指标（由 ShmDataSource 在 onTick() 中计算, 不来自 shm）───
+    // TripComputer 算小计里程/平均车速/行驶时长, 是 v3 探针的"配置驱动"思路
+    // 在数据流链路上的延伸: 把 cpp 业务逻辑 → 派生 → QML
+    float            trip_distance_km;     // 累计行驶里程 (km)
+    float            trip_avg_speed_kmh;   // 平均车速 (km/h)
+    uint32_t         trip_duration_s;      // 累计行驶时长 (s)
+    bool             trip_is_moving;       // 当前是否在行驶 (派生, 不读 is_moving)
 } DisplaySnapshot;
 
 #ifdef __cplusplus

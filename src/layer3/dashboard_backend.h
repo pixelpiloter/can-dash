@@ -42,6 +42,12 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(qulonglong droppedFrames READ droppedFrames NOTIFY dataHealthChanged)
     Q_PROPERTY(QVariantMap fieldValidity READ fieldValidity NOTIFY dataHealthChanged)
 
+    // 派生指标 (v3 探针延伸)
+    Q_PROPERTY(float tripDistanceKm READ tripDistanceKm NOTIFY tripChanged)
+    Q_PROPERTY(float tripAvgSpeedKmh READ tripAvgSpeedKmh NOTIFY tripChanged)
+    Q_PROPERTY(uint tripDurationS READ tripDurationS NOTIFY tripChanged)
+    Q_PROPERTY(bool tripIsMoving READ tripIsMoving NOTIFY tripChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -71,12 +77,20 @@ public:
     qulonglong droppedFrames() const;
     QVariantMap fieldValidity() const;
 
+    // 派生指标
+    float tripDistanceKm() const;
+    float tripAvgSpeedKmh() const;
+    uint tripDurationS() const;
+    bool tripIsMoving() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
     Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
     Q_INVOKABLE QString tr(const QString& key) const;
     Q_INVOKABLE void setLanguage(const QString& lang);
+    // QML 端 "重置小计" 按钮调用
+    Q_INVOKABLE void resetTrip();
 
 signals:
     void displayDataChanged();
@@ -87,6 +101,7 @@ signals:
     void healthChanged();
     void dataHealthChanged();
     void languageChanged();
+    void tripChanged();  // v3 探针延伸: 派生指标变更
 
 private:
     std::unique_ptr<IDataSource> m_source;
@@ -94,4 +109,6 @@ private:
 
     // 拿到 QtDataBinder 的具体指针（用于 Q_PROPERTY 透传）
     class QtDataBinder* m_qtBinder = nullptr;
+    // 拿到 ShmDataSource 的具体指针（用于 resetTrip 这种"反方向"操作）
+    class ShmDataSource* m_shmSource = nullptr;
 };

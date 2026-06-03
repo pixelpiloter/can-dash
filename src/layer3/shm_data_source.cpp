@@ -134,6 +134,16 @@ void ShmDataSource::onTick() {
     m_lastFrameSeq = shm.frame_seq;
     next.meta.dropped_frames = m_droppedFrames;
 
+    // ─── 4.5. 派生指标: TripComputer (v3 探针延伸) ───
+    // 用 shm commit 时间戳驱动 tick (而非 wall clock), 保证:
+    //   - 与数据流同步: 数据帧到了才推进小计
+    //   - 重放/录像数据可重现: 用帧时间戳而非真实时间
+    m_trip.tick(static_cast<uint64_t>(shm.last_commit_ms), next.data.vehicle_speed);
+    next.trip_distance_km   = m_trip.tripDistanceKm();
+    next.trip_avg_speed_kmh = m_trip.tripAvgSpeedKmh();
+    next.trip_duration_s    = m_trip.tripDurationS();
+    next.trip_is_moving     = m_trip.isMoving();
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);

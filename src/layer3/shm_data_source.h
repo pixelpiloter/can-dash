@@ -10,6 +10,7 @@
 
 #include "idata_source.h"
 #include "layer1/shm/shm_display.h"  // DisplayDataShm 完整定义（用于 convertSnapshot）
+#include "layer2/trip_computer.h"     // 派生指标 (v3 探针延伸, 9b88428)
 #include <QTimer>
 #include <QObject>
 #include <atomic>
@@ -29,12 +30,15 @@ public:
     void setUpdateCallback(UpdateCallback cb) override { m_updateCb = std::move(cb); }
     void setHealthCallback(HealthCallback cb) override { m_healthCb = std::move(cb); }
 
-    // ─── 测试钩子 ───
+    // 测试钩子
     // 注入 tick 间隔（默认 16ms；测试可改为 1ms）
     void setTickIntervalMs(int ms) { m_tickIntervalMs = ms; }
 
     // 手动触发一次 tick（用于单元测试不依赖定时器）
     void tickForTest() { onTick(); }
+
+    // 重置小计 (Q_INVOKABLE 走 DashboardBackend 暴露给 QML 的 "重置" 按钮)
+    void resetTripForTest() { m_trip.reset(); }
 
 private slots:
     void onTick();
@@ -57,6 +61,9 @@ private:
     uint64_t m_fpsWindowStart = 0;
     uint32_t m_fpsCountInWindow = 0;
     double m_fps = 0.0;
+
+    // 派生指标 (v3 探针延伸, commit 9b88428)
+    TripComputer m_trip;
 
     // 回调
     UpdateCallback m_updateCb;
