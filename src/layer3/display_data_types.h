@@ -82,6 +82,22 @@ typedef struct {
 // ⚠️ display_data.h 由 yaml_to_c.py 生成，这里仅 re-export
 #include "../layer1/display_data.h"   // DisplayData
 
+// ─── WarningManager (PR 9) ───
+// DisplayActiveWarning 必须在 DisplaySnapshot 之前定义 (C struct 不能前向引用 typedef)
+typedef struct {
+    char     name[32];
+    char     text_zh[128];
+    char     text_en[128];
+    uint8_t  severity;        // 0=INFO, 1=WARNING, 2=CRITICAL
+    uint8_t  _pad[3];
+    uint32_t priority;
+    uint32_t color;
+    uint64_t first_seen_ms;
+    uint64_t last_seen_ms;
+    uint32_t dedup_count;
+} DisplayActiveWarning;
+#define DISPLAY_WARNING_MAX 8
+
 // ─── 完整数据快照（DataSource 推送给 Binder 的数据结构）───
 typedef struct {
     DisplayData      data;            // 28 业务字段
@@ -117,6 +133,14 @@ typedef struct {
     uint32_t         theme_color_accent;      // 强调 ARGB
     uint32_t         theme_color_warning;     // 警告 ARGB
     uint32_t         theme_color_critical;    // 严重 ARGB
+
+    // ─── WarningManager (PR 9) ───
+    // L3 镜像 L2 ActiveWarning (字段一致, 避免 DisplaySnapshot 跨层 include L2 header)
+    // 由 ShmDataSource 在 onTick() 中从 m_warning.activeWarnings() 复制填入
+    DisplayActiveWarning active_warnings[DISPLAY_WARNING_MAX];
+    uint8_t              warning_count;   // active_warnings 数组有效长度
+    uint8_t              has_critical;    // 派生: 是否有 CRITICAL (priority=0)
+    uint8_t              _warning_pad[2];
 } DisplaySnapshot;
 
 #ifdef __cplusplus

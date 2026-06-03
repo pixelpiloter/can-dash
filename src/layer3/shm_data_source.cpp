@@ -163,6 +163,33 @@ void ShmDataSource::onTick() {
     next.theme_color_warning       = tc.warning;
     next.theme_color_critical      = tc.critical;
 
+    // ─── 4.7. WarningManager (PR 9) ───
+    // tick 处理 hold 过期, 然后把 m_warning.activeWarnings() 复制到 snapshot
+    // 报警推入 (pushAlarm) 由 AlarmRuntime 触发 — 本 PR 还未接入, 测试用 pushWarningForTest 注入
+    m_warning.tick(static_cast<uint64_t>(shm.last_commit_ms));
+    const auto& warns = m_warning.activeWarnings();
+    next.warning_count = 0;
+    next.has_critical  = m_warning.hasCritical() ? 1u : 0u;
+    const size_t cap = std::min(warns.size(), static_cast<size_t>(DISPLAY_WARNING_MAX));
+    for (size_t i = 0; i < cap; i++) {
+        const auto& src = warns[i];
+        auto& dst = next.active_warnings[i];
+        std::memcpy(dst.name, src.name, sizeof(dst.name));
+        std::memcpy(dst.text_zh, src.text_zh, sizeof(dst.text_zh));
+        std::memcpy(dst.text_en, src.text_en, sizeof(dst.text_en));
+        dst.severity      = src.severity;
+        dst.priority      = src.priority;
+        dst.color         = src.color;
+        dst.first_seen_ms = src.first_seen_ms;
+        dst.last_seen_ms  = src.last_seen_ms;
+        dst.dedup_count   = src.dedup_count;
+        next.warning_count = static_cast<uint8_t>(i + 1);
+    }
+    // 剩余 slot 清零 (避免脏数据)
+    for (size_t i = cap; i < DISPLAY_WARNING_MAX; i++) {
+        std::memset(&next.active_warnings[i], 0, sizeof(DisplayActiveWarning));
+    }
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -255,3 +282,20 @@ void ShmDataSource::setThemeHourForTest(uint8_t h)       { m_theme.setCurrentHou
 void ShmDataSource::setThemeSunriseForTest(uint8_t h)    { m_theme.setSunriseHour(h); }
 void ShmDataSource::setThemeSunsetForTest(uint8_t h)     { m_theme.setSunsetHour(h); }
 void ShmDataSource::resetThemeForTest()                  { m_theme.reset(); }
+
+// ─── WarningManager setter 实现 (PR 9, 测试用注入) ───
+void ShmDataSource::pushWarningForTest(const char* name, uint8_t priority,
+                                    uint8_t r, uint8_t g, uint8_t b,
+                                    uint64_t now_ms) {
+candash::AlarmEvent evt{};
+std::strncpy(evt.name, name, sizeof(evt.name) - 1);
+std::strncpy(evt.text_zh, "测试告警", sizeof(evt.text_zh) - 1);
+std::strncpy(evt.text_en, "test warning", sizeof(evt.text_en) - 1);
+evt.priority = priority;
+evt.color_r = r; evt.color_g = g; evt.color_b = b;
+// 0 表示用 wall clock (跟 onTick 的 shm.last_commit_ms 同一时间基准, 避免 hold 误清)
+if (now_ms == 0) now_ms = candash::now_monotonic_ms();
+m_warning.pushAlarm(evt, now_ms);
+}
+void ShmDataSource::tickWarningForTest(uint64_t now_ms)  { m_warning.tick(now_ms); }
+void ShmDataSource::resetWarningForTest()                 { m_warning.reset(); }

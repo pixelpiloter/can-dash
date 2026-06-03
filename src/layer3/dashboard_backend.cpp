@@ -37,6 +37,7 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
     connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
     connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
+    connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
 
     // 业务注入
     m_binder = std::move(binder);
@@ -85,6 +86,7 @@ void DashboardBackend::setDataBinder(std::unique_ptr<IDataBinder> binder) {
         connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
         connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
         connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
+        connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
     }
     m_binder = std::move(binder);
 }
@@ -123,6 +125,11 @@ uint  DashboardBackend::themeColorForeground() const   { return m_qtBinder ? m_q
 uint  DashboardBackend::themeColorAccent() const       { return m_qtBinder ? m_qtBinder->themeColorAccent()      : 0xFF1976D2u; }
 uint  DashboardBackend::themeColorWarning() const      { return m_qtBinder ? m_qtBinder->themeColorWarning()     : 0xFFFFC107u; }
 uint  DashboardBackend::themeColorCritical() const     { return m_qtBinder ? m_qtBinder->themeColorCritical()    : 0xFFD32F2Fu; }
+
+// 警告 getter 透传 (PR 9)
+QVariantList DashboardBackend::warningActiveList() const { return m_qtBinder ? m_qtBinder->warningActiveList() : QVariantList(); }
+int   DashboardBackend::warningCount() const              { return m_qtBinder ? m_qtBinder->warningCount()     : 0; }
+bool  DashboardBackend::hasCritical() const               { return m_qtBinder && m_qtBinder->hasCritical(); }
 
 void DashboardBackend::resetTrip() {
     // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界

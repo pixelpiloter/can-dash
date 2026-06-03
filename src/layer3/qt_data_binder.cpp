@@ -108,6 +108,31 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (s.theme_color_warning       != m_themeColorWarning)        { m_themeColorWarning       = s.theme_color_warning;        themeDirty = true; }
     if (s.theme_color_critical      != m_themeColorCritical)       { m_themeColorCritical      = s.theme_color_critical;       themeDirty = true; }
     if (themeDirty) emit themeChanged();
+
+    // ─── 9. 警告 (PR 9) — 拼装 QVariantList + dirty flag ───
+    QVariantList newWarnList;
+    newWarnList.reserve(s.warning_count);
+    for (uint8_t i = 0; i < s.warning_count; i++) {
+        const auto& w = s.active_warnings[i];
+        QVariantMap m;
+        m["name"]         = QString::fromUtf8(w.name);
+        m["text_zh"]      = QString::fromUtf8(w.text_zh);
+        m["text_en"]      = QString::fromUtf8(w.text_en);
+        m["severity"]     = w.severity;
+        m["priority"]     = w.priority;
+        m["color"]        = static_cast<uint>(w.color);
+        m["dedup_count"]  = static_cast<uint>(w.dedup_count);
+        m["first_seen_ms"] = static_cast<qulonglong>(w.first_seen_ms);
+        m["last_seen_ms"]  = static_cast<qulonglong>(w.last_seen_ms);
+        newWarnList.append(m);
+    }
+    const int newWarnCount = static_cast<int>(s.warning_count);
+    const bool newHasCrit  = (s.has_critical != 0);
+    bool warningDirty = false;
+    if (newWarnList != m_warningActiveList) { m_warningActiveList = newWarnList; warningDirty = true; }
+    if (newWarnCount != m_warningCount)     { m_warningCount = newWarnCount;     warningDirty = true; }
+    if (newHasCrit  != m_hasCritical)       { m_hasCritical  = newHasCrit;       warningDirty = true; }
+    if (warningDirty) emit warningChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

@@ -12,6 +12,7 @@
 #include "layer1/shm/shm_display.h"  // DisplayDataShm 完整定义（用于 convertSnapshot）
 #include "layer2/trip_computer.h"     // 派生指标 (v3 探针延伸, 9b88428)
 #include "layer2/theme_manager.h"     // 主题 (PR 7)
+#include "layer2/warning_manager.h"   // 警告 (PR 9)
 #include <QTimer>
 #include <QObject>
 #include <atomic>
@@ -49,6 +50,14 @@ public:
     void setThemeSunsetForTest(uint8_t hour);
     void resetThemeForTest();
 
+    // ─── WarningManager setter (PR 9, 测试用注入) ───
+    // 生产环境报警由 AlarmRuntime 推入, 测试通过这两个 setter 直接模拟
+    void pushWarningForTest(const char* name, uint8_t priority,
+                            uint8_t r=0xFF, uint8_t g=0x44, uint8_t b=0x00,
+                            uint64_t now_ms=0);
+    void tickWarningForTest(uint64_t now_ms);
+    void resetWarningForTest();
+
 private slots:
     void onTick();
 
@@ -76,6 +85,9 @@ private:
 
     // 主题 (PR 7) — 状态由 ShmDataSource 唯一持有, binder 只读透传
     candash::ThemeManager m_theme;
+
+    // WarningManager (PR 9) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    candash::WarningManager m_warning;
 
     // 回调
     UpdateCallback m_updateCb;

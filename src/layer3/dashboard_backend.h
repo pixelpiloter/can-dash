@@ -61,6 +61,11 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(uint themeColorWarning READ themeColorWarning NOTIFY themeChanged)
     Q_PROPERTY(uint themeColorCritical READ themeColorCritical NOTIFY themeChanged)
 
+    // 警告 (PR 9) — 透传到 QtDataBinder
+    Q_PROPERTY(QVariantList warningActiveList READ warningActiveList NOTIFY warningChanged)
+    Q_PROPERTY(int warningCount READ warningCount NOTIFY warningChanged)
+    Q_PROPERTY(bool hasCritical READ hasCritical NOTIFY warningChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -109,6 +114,11 @@ public:
     uint themeColorWarning() const;
     uint themeColorCritical() const;
 
+    // 警告 (PR 9) — 透传到 QtDataBinder
+    QVariantList warningActiveList() const;
+    int warningCount() const;
+    bool hasCritical() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
@@ -132,6 +142,7 @@ signals:
     void languageChanged();
     void tripChanged();  // v3 探针延伸: 派生指标变更
     void themeChanged();  // PR 7: 主题模式或 5 色任一变化
+    void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
 
 private:
     std::unique_ptr<IDataSource> m_source;

@@ -67,6 +67,11 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(uint themeColorWarning READ themeColorWarning NOTIFY themeChanged)
     Q_PROPERTY(uint themeColorCritical READ themeColorCritical NOTIFY themeChanged)
 
+    // ─── WarningManager (PR 9) — 共享 warningChanged(), count/list/has_critical ───
+    Q_PROPERTY(QVariantList warningActiveList READ warningActiveList NOTIFY warningChanged)
+    Q_PROPERTY(int warningCount READ warningCount NOTIFY warningChanged)
+    Q_PROPERTY(bool hasCritical READ hasCritical NOTIFY warningChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -118,6 +123,11 @@ public:
     uint themeColorWarning() const    { return static_cast<uint>(m_themeColorWarning); }
     uint themeColorCritical() const   { return static_cast<uint>(m_themeColorCritical); }
 
+    // 警告 (PR 9)
+    QVariantList warningActiveList() const { return m_warningActiveList; }
+    int  warningCount() const              { return m_warningCount; }
+    bool hasCritical() const               { return m_hasCritical; }
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -137,6 +147,7 @@ signals:
     void languageChanged();
     void tripChanged();  // v3 探针延伸: 派生指标变更
     void themeChanged();  // PR 7: 主题模式或 5 色任一变化
+    void warningChanged();  // PR 9: warningCount/list/hasCritical 任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -193,6 +204,11 @@ private:
     uint32_t m_themeColorAccent     = 0xFF1976D2u;
     uint32_t m_themeColorWarning    = 0xFFFFC107u;
     uint32_t m_themeColorCritical   = 0xFFD32F2Fu;
+
+    // 警告 (PR 9) — 由 ShmDataSource 推过来, 缓存到这些字段
+    QVariantList m_warningActiveList;
+    int          m_warningCount = 0;
+    bool         m_hasCritical  = false;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;
