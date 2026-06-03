@@ -52,6 +52,15 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(float tripEfficiencyKWh100Km READ tripEfficiencyKWh100Km NOTIFY tripChanged)
     Q_PROPERTY(float tripRangeConfidencePct READ tripRangeConfidencePct NOTIFY tripChanged)
 
+    // 主题 (PR 7)
+    Q_PROPERTY(int themeMode READ themeMode NOTIFY themeChanged)
+    Q_PROPERTY(bool themeIsDay READ themeIsDay NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorBackground READ themeColorBackground NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorForeground READ themeColorForeground NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorAccent READ themeColorAccent NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorWarning READ themeColorWarning NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorCritical READ themeColorCritical NOTIFY themeChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -81,7 +90,7 @@ public:
     qulonglong droppedFrames() const;
     QVariantMap fieldValidity() const;
 
-    // 派生指标
+    // 派生指标 (v3 探针延伸)
     float tripDistanceKm() const;
     float tripAvgSpeedKmh() const;
     uint tripDurationS() const;
@@ -91,6 +100,15 @@ public:
     float tripEfficiencyKWh100Km() const;
     float tripRangeConfidencePct() const;
 
+    // 主题 (PR 7) — 透传到 QtDataBinder
+    int themeMode() const;
+    bool themeIsDay() const;
+    uint themeColorBackground() const;
+    uint themeColorForeground() const;
+    uint themeColorAccent() const;
+    uint themeColorWarning() const;
+    uint themeColorCritical() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
@@ -99,6 +117,9 @@ public:
     Q_INVOKABLE void setLanguage(const QString& lang);
     // QML 端 "重置小计" 按钮调用
     Q_INVOKABLE void resetTrip();
+    // 主题 (PR 7): 透传到 ShmDataSource.m_theme, 下次 16ms tick 自动反映到 QML
+    Q_INVOKABLE void setThemeMode(int mode);  // 0=DAY, 1=NIGHT, 2=AUTO
+    Q_INVOKABLE void resetTheme();
 
 signals:
     void displayDataChanged();
@@ -110,6 +131,7 @@ signals:
     void dataHealthChanged();
     void languageChanged();
     void tripChanged();  // v3 探针延伸: 派生指标变更
+    void themeChanged();  // PR 7: 主题模式或 5 色任一变化
 
 private:
     std::unique_ptr<IDataSource> m_source;

@@ -58,6 +58,15 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(float tripEfficiencyKWh100Km READ tripEfficiencyKWh100Km NOTIFY tripChanged)
     Q_PROPERTY(float tripRangeConfidencePct READ tripRangeConfidencePct NOTIFY tripChanged)
 
+    // ─── 主题 (PR 7) — 单一 NOTIFY 共享 6 个颜色属性, QML 端读 6 字段只触发 1 次重算 ───
+    Q_PROPERTY(int themeMode READ themeMode NOTIFY themeChanged)
+    Q_PROPERTY(bool themeIsDay READ themeIsDay NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorBackground READ themeColorBackground NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorForeground READ themeColorForeground NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorAccent READ themeColorAccent NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorWarning READ themeColorWarning NOTIFY themeChanged)
+    Q_PROPERTY(uint themeColorCritical READ themeColorCritical NOTIFY themeChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -100,6 +109,15 @@ public:
     float tripEfficiencyKWh100Km() const  { return m_tripEfficiencyKWh100Km; }
     float tripRangeConfidencePct() const { return m_tripRangeConfidencePct; }
 
+    // 主题 (PR 7)
+    int themeMode() const        { return static_cast<int>(m_themeMode); }
+    bool themeIsDay() const      { return m_themeIsDay != 0; }
+    uint themeColorBackground() const { return static_cast<uint>(m_themeColorBackground); }
+    uint themeColorForeground() const { return static_cast<uint>(m_themeColorForeground); }
+    uint themeColorAccent() const     { return static_cast<uint>(m_themeColorAccent); }
+    uint themeColorWarning() const    { return static_cast<uint>(m_themeColorWarning); }
+    uint themeColorCritical() const   { return static_cast<uint>(m_themeColorCritical); }
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -118,6 +136,7 @@ signals:
     void dataHealthChanged();
     void languageChanged();
     void tripChanged();  // v3 探针延伸: 派生指标变更
+    void themeChanged();  // PR 7: 主题模式或 5 色任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -164,6 +183,16 @@ private:
     float m_tripEnergyKWh = 0.0f;
     float m_tripEfficiencyKWh100Km = 0.0f;
     float m_tripRangeConfidencePct = 100.0f;
+
+    // 主题 (PR 7) — 由 ShmDataSource 推过来, 缓存到这些字段
+    uint8_t m_themeMode = 2;             // 默认 AUTO (0=DAY, 1=NIGHT, 2=AUTO)
+    uint8_t m_themeIsDay = 1;            // 派生
+    uint8_t _m_themePad[2] = {0, 0};
+    uint32_t m_themeColorBackground = 0xFFFFFFFFu;  // 默认 DAY 色
+    uint32_t m_themeColorForeground = 0xFF111111u;
+    uint32_t m_themeColorAccent     = 0xFF1976D2u;
+    uint32_t m_themeColorWarning    = 0xFFFFC107u;
+    uint32_t m_themeColorCritical   = 0xFFD32F2Fu;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;

@@ -36,6 +36,7 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::dataHealthChanged, this, &DashboardBackend::dataHealthChanged);
     connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
     connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
+    connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
 
     // 业务注入
     m_binder = std::move(binder);
@@ -83,6 +84,7 @@ void DashboardBackend::setDataBinder(std::unique_ptr<IDataBinder> binder) {
         connect(m_qtBinder, &QtDataBinder::dataHealthChanged, this, &DashboardBackend::dataHealthChanged);
         connect(m_qtBinder, &QtDataBinder::languageChanged, this, &DashboardBackend::languageChanged);
         connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
+        connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
     }
     m_binder = std::move(binder);
 }
@@ -113,9 +115,29 @@ float DashboardBackend::tripEnergyKWh() const          { return m_qtBinder ? m_q
 float DashboardBackend::tripEfficiencyKWh100Km() const{ return m_qtBinder ? m_qtBinder->tripEfficiencyKWh100Km(): 0.0f; }
 float DashboardBackend::tripRangeConfidencePct() const{ return m_qtBinder ? m_qtBinder->tripRangeConfidencePct(): 100.0f; }
 
+// 主题 getter 透传 (PR 7)
+int   DashboardBackend::themeMode() const              { return m_qtBinder ? m_qtBinder->themeMode()              : 2; }
+bool  DashboardBackend::themeIsDay() const             { return m_qtBinder && m_qtBinder->themeIsDay(); }
+uint  DashboardBackend::themeColorBackground() const   { return m_qtBinder ? m_qtBinder->themeColorBackground()  : 0xFFFFFFFFu; }
+uint  DashboardBackend::themeColorForeground() const   { return m_qtBinder ? m_qtBinder->themeColorForeground()  : 0xFF111111u; }
+uint  DashboardBackend::themeColorAccent() const       { return m_qtBinder ? m_qtBinder->themeColorAccent()      : 0xFF1976D2u; }
+uint  DashboardBackend::themeColorWarning() const      { return m_qtBinder ? m_qtBinder->themeColorWarning()     : 0xFFFFC107u; }
+uint  DashboardBackend::themeColorCritical() const     { return m_qtBinder ? m_qtBinder->themeColorCritical()    : 0xFFD32F2Fu; }
+
 void DashboardBackend::resetTrip() {
     // 通过具体指针调 (而不是 IDataSource 接口), 避免污染抽象边界
     if (m_shmSource) m_shmSource->resetTripForTest();
+}
+
+void DashboardBackend::setThemeMode(int mode) {
+    // 0=DAY, 1=NIGHT, 2=AUTO — 透传到 ShmDataSource.m_theme, 下次 16ms tick 自动反映
+    if (m_shmSource) {
+        m_shmSource->setThemeModeForTest(static_cast<candash::ThemeMode>(mode));
+    }
+}
+
+void DashboardBackend::resetTheme() {
+    if (m_shmSource) m_shmSource->resetThemeForTest();
 }
 
 QVariant DashboardBackend::get(const QString& key) const { return m_qtBinder ? m_qtBinder->get(key) : QVariant(); }

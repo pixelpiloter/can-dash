@@ -96,6 +96,18 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (s.trip_efficiency_kwh100km    != m_tripEfficiencyKWh100Km)    { m_tripEfficiencyKWh100Km    = s.trip_efficiency_kwh100km;   tripDirty = true; }
     if (s.trip_range_confidence_pct   != m_tripRangeConfidencePct)   { m_tripRangeConfidencePct    = s.trip_range_confidence_pct;  tripDirty = true; }
     if (tripDirty) emit tripChanged();
+
+    // ─── 8. 主题 (PR 7) — dirty flag, mode 或 5 色任一变化才 emit ───
+    // 避免 16ms 重复 emit 触发 QML Binding 反复求值
+    bool themeDirty = false;
+    if (s.theme_mode                != m_themeMode)                { m_themeMode                = s.theme_mode;                themeDirty = true; }
+    if (s.theme_is_day              != m_themeIsDay)               { m_themeIsDay              = s.theme_is_day;               themeDirty = true; }
+    if (s.theme_color_background    != m_themeColorBackground)     { m_themeColorBackground    = s.theme_color_background;     themeDirty = true; }
+    if (s.theme_color_foreground    != m_themeColorForeground)     { m_themeColorForeground    = s.theme_color_foreground;     themeDirty = true; }
+    if (s.theme_color_accent        != m_themeColorAccent)         { m_themeColorAccent        = s.theme_color_accent;         themeDirty = true; }
+    if (s.theme_color_warning       != m_themeColorWarning)        { m_themeColorWarning       = s.theme_color_warning;        themeDirty = true; }
+    if (s.theme_color_critical      != m_themeColorCritical)       { m_themeColorCritical      = s.theme_color_critical;       themeDirty = true; }
+    if (themeDirty) emit themeChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

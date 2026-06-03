@@ -150,6 +150,19 @@ void ShmDataSource::onTick() {
     next.trip_efficiency_kwh100km    = m_trip.efficiencyKWh100Km();
     next.trip_range_confidence_pct   = m_trip.rangeConfidencePct();
 
+    // ─── 4.6. 主题 (PR 7) ───
+    // 同样用 shm commit 时间戳驱动 tick, 16ms 节奏与数据流同步
+    // QML 端 setThemeMode → m_theme.setMode() → 下次 onTick 自然反映到 snapshot
+    m_theme.tick(static_cast<uint64_t>(shm.last_commit_ms));
+    const candash::ThemeColors tc = m_theme.colors();
+    next.theme_mode                = static_cast<uint8_t>(m_theme.currentMode());
+    next.theme_is_day              = m_theme.isDay() ? 1u : 0u;
+    next.theme_color_background    = tc.background;
+    next.theme_color_foreground    = tc.foreground;
+    next.theme_color_accent        = tc.accent;
+    next.theme_color_warning       = tc.warning;
+    next.theme_color_critical      = tc.critical;
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -233,3 +246,12 @@ void ShmDataSource::convertSnapshot(const DisplayDataShm& shm, DisplaySnapshot& 
     // is_moving
     out.is_moving = (shm.vehicle_speed > 1.0f);
 }
+
+// ─── 主题 setter 实现 (PR 7) ───
+// 非 inline, 避免 m_theme 类内引用未声明的顺序依赖
+void ShmDataSource::resetTripForTest()                  { m_trip.reset(); }
+void ShmDataSource::setThemeModeForTest(candash::ThemeMode m) { m_theme.setMode(m); }
+void ShmDataSource::setThemeHourForTest(uint8_t h)       { m_theme.setCurrentHour(h); }
+void ShmDataSource::setThemeSunriseForTest(uint8_t h)    { m_theme.setSunriseHour(h); }
+void ShmDataSource::setThemeSunsetForTest(uint8_t h)     { m_theme.setSunsetHour(h); }
+void ShmDataSource::resetThemeForTest()                  { m_theme.reset(); }

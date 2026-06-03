@@ -105,6 +105,18 @@ typedef struct {
     float            trip_energy_kwh;          // 累计放电能量 (kWh)
     float            trip_efficiency_kwh100km; // 百公里电耗 (kWh/100km), < 0.5km 时为 0
     float            trip_range_confidence_pct; // 续航可信度 (0-100%), 默认 100
+
+    // ─── 主题 (PR 7) ───
+    // 模式 + 5 色: ARGB 格式 (与 alarm_runtime 的 color 字段一致)
+    // 由 ShmDataSource 在 onTick() 中从 m_theme 取出填入
+    uint8_t          theme_mode;       // 0=DAY, 1=NIGHT, 2=AUTO
+    uint8_t          theme_is_day;     // 派生: 当前是否日间 (0/1)
+    uint8_t          _theme_pad[2];
+    uint32_t         theme_color_background;  // 主背景 ARGB
+    uint32_t         theme_color_foreground;  // 主文字 ARGB
+    uint32_t         theme_color_accent;      // 强调 ARGB
+    uint32_t         theme_color_warning;     // 警告 ARGB
+    uint32_t         theme_color_critical;    // 严重 ARGB
 } DisplaySnapshot;
 
 #ifdef __cplusplus

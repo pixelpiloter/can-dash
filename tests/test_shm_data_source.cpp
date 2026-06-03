@@ -14,6 +14,7 @@
 #include "layer3/display_data_types.h"
 #include "layer1/shm/shm_display.h"
 #include "layer2/time_util.h"
+#include "layer2/theme_manager.h"  // PR 7: ThemeManager 集成测试
 #include "mock_data_binder.h"
 
 #include <QCoreApplication>
@@ -235,6 +236,90 @@ int main(int argc, char** argv) {
         TEST_ASSERT(s.indicators.lights[0].on, "indicator[0].on = true");
         TEST_ASSERT(s.indicators.lights[0].flash, "indicator[0].flash = true");
         TEST_ASSERT(qFuzzyCompare(s.indicators.lights[0].hz, 1.5f), "indicator[0].hz = 1.5");
+
+        src.stop();
+        shm_display_close();
+    }
+
+    // ─── Test 8: ThemeManager 集成 (PR 7) ───
+    // 验证 ShmDataSource m_theme 状态 → snapshot 6 字段全链路
+    printf("\n[8] ThemeManager 集成:\n");
+    {
+        shm_display_close();
+        ShmDataSource src;
+        MockDataBinder binder;
+        src.setUpdateCallback([&](const DisplaySnapshot& s) { binder.onDataUpdated(s); });
+        src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
+        src.start();
+
+        // 8.1 默认状态: AUTO + hour=12 → DAY, 5 色 = kDayColors
+        writeShmFrame(1, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        auto s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_mode == 2u, "默认 mode = AUTO (2)");
+        TEST_ASSERT(s.theme_is_day == 1u, "默认 isDay = 1 (中午)");
+        TEST_ASSERT(s.theme_color_background == candash::ThemeManager::kDayColors.background, "默认 bg = DAY 色");
+        TEST_ASSERT(s.theme_color_foreground == candash::ThemeManager::kDayColors.foreground, "默认 fg = DAY 色");
+        TEST_ASSERT(s.theme_color_critical   == candash::ThemeManager::kDayColors.critical,  "默认 critical = DAY 色 (跨模式一致)");
+
+        // 8.2 setMode(NIGHT) → 强制夜间, 5 色 = kNightColors
+        src.setThemeModeForTest(candash::ThemeMode::NIGHT);
+        writeShmFrame(2, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_mode == 1u, "NIGHT 模式: mode = 1");
+        TEST_ASSERT(s.theme_is_day == 0u, "NIGHT 模式: isDay = 0");
+        TEST_ASSERT(s.theme_color_background == candash::ThemeManager::kNightColors.background, "NIGHT 模式: bg = NIGHT 色");
+
+        // 8.3 setMode(DAY) → 强制日间
+        src.setThemeModeForTest(candash::ThemeMode::DAY);
+        writeShmFrame(3, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_mode == 0u, "DAY 模式: mode = 0");
+        TEST_ASSERT(s.theme_is_day == 1u, "DAY 模式: isDay = 1 (强制)");
+
+        // 8.4 AUTO + 凌晨 2 点 → NIGHT (小时评估)
+        src.setThemeModeForTest(candash::ThemeMode::AUTO);
+        src.setThemeHourForTest(2);
+        writeShmFrame(4, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_mode == 2u, "AUTO + hour=2: mode = AUTO");
+        TEST_ASSERT(s.theme_is_day == 0u, "AUTO + hour=2: isDay = 0 (NIGHT)");
+        TEST_ASSERT(s.theme_color_background == candash::ThemeManager::kNightColors.background, "AUTO+hour=2: bg = NIGHT 色");
+
+        // 8.5 reset → 回到默认 AUTO + 12:00 + DAY
+        src.resetThemeForTest();
+        writeShmFrame(5, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_mode == 2u, "reset: mode = AUTO");
+        TEST_ASSERT(s.theme_is_day == 1u, "reset: isDay = 1 (hour=12)");
+
+        // 8.6 自定义 sunrise/sunset: hour=7 + sunrise=8 + sunset=20 → NIGHT
+        src.setThemeSunriseForTest(8);
+        src.setThemeSunsetForTest(20);
+        src.setThemeHourForTest(7);
+        writeShmFrame(6, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_is_day == 0u, "AUTO+custom[8,20)+hour=7: isDay=0");
+
+        // 8.7 同一 hour 不同模式: hour=12 强制 NIGHT → NIGHT 色
+        src.setThemeHourForTest(12);
+        src.setThemeModeForTest(candash::ThemeMode::NIGHT);
+        writeShmFrame(7, 0.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.theme_is_day == 0u, "hour=12 + NIGHT 模式: isDay=0 (强制)");
 
         src.stop();
         shm_display_close();
