@@ -1,24 +1,24 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 39 同步)
+最后更新: 2026-06-04 (PR 40 同步)
 
 ## 统计
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
-| HYBRID (混动特有) | 6 | 1 | 5 | 0 |
+| HYBRID (混动特有) | 6 | 0 | 6 | 0 |
 | IND (指示灯) | 12 | 0 | 12 | 0 |
 | SIG (CAN信号) | 19 | 0 | 19 | 0 |
 | UI (界面) | 5 | 1 | 4 | 0 |
 | SYS (系统) | 5 | 2 | 3 | 0 |
-| **合计** | **59** | **3** | **54** | **2** |
+| **合计** | **59** | **2** | **55** | **2** |
 
 > **PR 39 同步说明**: HYBRID 类别 1 条 docs-only 同步 (跟 PR 25/33/34/35/36/37/38 docs-only 形状一致, 0 cpp 改动):
 > - **REQ-HYBRID-002** (电池温度显示与报警): 状态 Approved → Implemented, 实现版本补全 QML 显示. **修正 §4 stale 误判**: 之前 .md §4 "QML 显示 | **缺** — 当前仪表盘未在 TripPanel / 主仪表区显示 battery_temp 数值" + INDEX impl ref "显示组件待 PR 32" 是 stale 描述. 实际 src/ui/EnergyFlowDiagram.qml L246-247 早已实现 batteryTemp.toFixed(0) + "°C" 显示 + 颜色阈值 (>50°C 红, >40°C 橙, 其他灰), 数据通路是 ShmDataSource.cpp:L316 (out.data.battery_temp = shm.battery_temp) → QtDataBinder.cpp:L194 (m["battery_temp"] = d.battery_temp) → DashboardMain.qml:L262 (batteryTemp: dashboard.displayData["battery_temp"] || 0 绑定到 EnergyFlowDiagram). 报警侧 bat_temp_high L228 + bat_temp_critical L244 + 指示灯 bat_warn_light L5 联动完整, "显示" 部分"缺"的判断不成立.
 > - 类别表 stale 修复: HYBRID 2/4/0 → 1/5/0, 合计 4/53/2 → 3/54/2
 > - **决策依据**: 跟 PR 35 修 SIG-002 / PR 30 修 HYBRID 标题 / PR 33 修 IND 标题同规则 — 当 .md §4 描述跟实际代码状态不符, .md §4 必须跟代码对齐, 不能反过来 (用户硬要求"诚实标注实现版本").
-> - **范围限制 (跟 PR 38 一致)**: 不动 REQ-HYBRID-006 (充电功率显示, 无 .md 文件 + INDEX impl ref "-", 需要新建 .md 才是另一形状, 留 PR 40 或独立) / 不动 REQ-UI-005 (资源规格, PR 37 决策保持 Approved) / 不动 REQ-SYS-002/003 (PR 37/38 决策保持 Approved) / 不动 SIG-011/012/015/016/019 (impl ref/标题错位, 留 PR 40+)
+> - **范围限制 (跟 PR 38 一致)**: REQ-HYBRID-006 (PR 40 已新建 .md + Implemented, 移出范围限制) / 不动 REQ-UI-005 (资源规格, PR 37 决策保持 Approved) / 不动 REQ-SYS-002/003 (PR 37/38 决策保持 Approved) / 不动 SIG-011/012/015/016/019 (impl ref/标题错位, 留 PR 40+)
 >
 
 > **PR 34 同步说明**: 跨 SYS + UI 类别 2 条 docs-only 同步 (跟 PR 25/33 docs-only 形状一致, 0 cpp 改动):
@@ -57,7 +57,7 @@
 > - REQ-HYBRID-005: 状态 Implemented, 实现版本 + ViewManager (PR 12) + ShmDataSource (PR 13) gear_status
 > 4 个 .md §实现追踪 章节全部填充: 实现文件行号 / 关联 L2 组件 / 验证日期 2026-06-04 / 验证结果 18/18 ctest pass.
 >
-> **范围限制**: HYBRID-006 充电功率显示仍无 .md (历史欠账, PR 24/27/30 决定不补) / 不动 IND/SIG/UI/SYS 类别表.
+> **范围限制**: 不动 IND/SIG/UI/SYS 类别表.
 >
 
 > **PR 29 同步说明**: 补 2 条 INDEX 实现版本引用 + 修统计表 stale:
@@ -76,6 +76,13 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 40 同步说明**: HYBRID 类别 1 条 docs-only 同步 (跟 PR 33 IND 6-12、PR 35 SIG 14、PR 36 IND 1-5/UI 3/SYS 1、PR 37 三角矛盾、PR 38 SIG 013/014/017、PR 39 HYBRID-002 同形状, 0 cpp 改动, 纯 docs sync):
+> - **新建 REQ-HYBRID-006.md** (历史欠账): 充电功率显示, 状态 Approved → Implemented, 实现版本填 can_ids.yaml:CHG_POWER (L167) + src/ui/EnergyFlowDiagram.qml:L255-256 (chargePower.toFixed(1) + 'kW' 文本 + 颜色阈值 充绿/放蓝)
+> - **数据通路** (跟 PR 39 HYBRID-002 同形状): ShmDataSource.cpp:L329 (out.data.charge_power = shm.charge_power) → QtDataBinder.cpp (m["charge_power"] 绑定) → DashboardMain.qml (chargePower 绑定) → EnergyFlowDiagram.qml:L255-256 渲染
+> - 类别表无变化 (HYBRID 0/6/0 保持, 合计 2/55/2 保持) — 纯单条 Approved→Implemented 移动
+> - **范围限制 (跟 PR 38/39 决策一致)**: 不动 REQ-UI-005 (资源规格, PR 37 决策保持 Approved) / 不动 REQ-SYS-002/003 (PR 37/38 决策保持 Approved) / 不动 REQ-SIG-011/012/015/016/019 (impl ref/标题错位, 留 PR 41+) / 不动 REQ-ALM-001/002 (无 .md) / 不动 SIG-013/014/017 标题错位 (PR 38 修状态但没改标题, 留 PR 41+) / 不动 SYS-005 黑屏/白屏检测 (需补代码, 留代码 PR)
+>
+
 > **PR 38 同步说明**: SIG 类别最后 3 条 Approved → Implemented + INDEX 标题错位修齐 (跟 PR 35 docs-only 形状一致, 0 cpp 改动):
 > - **REQ-SIG-013**: INDEX 标题 "驾驶员座椅温度信号" → "副驾安全带状态信号 (passenger_buckled)" (跟 .md 一致), 类型 Functional → Safety, 优先级 Low → High (跟 .md 一致, 安全相关), 状态 Approved → Implemented, 实现版本填 `can_ids.yaml:L112 (SEAT_BELT_P) + src/layer3/shm_data_source.cpp:L324`
 > - **REQ-SIG-014**: INDEX 标题 "副驾驶员座椅温度信号" → "后排安全带状态信号 (rear_buckle)" (跟 .md 一致), 类型 Functional → Safety, 优先级 Low → High, 状态 Approved → Implemented, 实现版本填 `can_ids.yaml:L123 (SEAT_BELT_R) + src/layer3/shm_data_source.cpp:L325`
@@ -141,7 +148,7 @@
 | REQ-HYBRID-003 | 纯电续航里程显示 (EV Range) | Functional | Medium | Implemented | trip_computer (PR 4) + indicators.yaml:ev_range_warn_light (L94) |
 | REQ-HYBRID-004 | 燃油续航里程显示 (Fuel Range / Fuel Level) | Functional | Medium | Implemented | trip_computer (PR 4) + alarm_rules.yaml:fuel_low (L180) + indicators.yaml:fuel_low_light (L86) |
 | REQ-HYBRID-005 | 档位显示 (Gear Status) | Functional | Medium | Implemented | ViewManager (PR 12) + ShmDataSource (PR 13) gear_status |
-| REQ-HYBRID-006 | 充电功率显示 | Functional | Medium | Approved | - |
+| REQ-HYBRID-006 | 充电功率显示 | Functional | Medium | Implemented | can_ids.yaml:CHG_POWER (L167) + src/ui/EnergyFlowDiagram.qml:L255-256 (chargePower 文本+颜色阈值 充绿/放蓝) |
 
 ### IND (指示灯) — 12项
 
