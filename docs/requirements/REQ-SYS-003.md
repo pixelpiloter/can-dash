@@ -6,7 +6,7 @@
 **优先级**: High
 **来源**:   系统设计
 **创建日期**: 2026-05-31
-**实现版本**: src/layer2/limp_home_runtime.cpp (PR 43 L2+test 升级) + config/limp_home.yaml (L1/L2/L3 触发阈值 + 恢复策略) + src/generated/limp_home_def.h (yaml→C 自动生成, 14 个 yaml 字段) + src/generated/limp_home_table.cpp (LIMP_HOME_CONFIG 实例) + tests/test_limp_home_runtime.cpp (15/15 单测通过) + src/layer3/display_data_types.h (DisplayLimpHomeState struct, PR 44) + src/layer3/shm_data_source.cpp (m_limp_home + onTick 喂 + copy snapshot, PR 44) + src/layer3/qt_data_binder.cpp/h (Q_PROPERTY 4 字段 + limpHomeChanged signal, PR 44) + src/layer3/dashboard_backend.cpp/h (Q_PROPERTY 4 字段透传, PR 44) + tests/test_shm_data_source.cpp (Test 12 集成, 12/12 通过, PR 44)
+**实现版本**: src/layer2/limp_home_runtime.cpp (PR 43 L2+test 升级) + config/limp_home.yaml (L1/L2/L3 触发阈值 + 恢复策略) + src/generated/limp_home_def.h (yaml→C 自动生成, 14 个 yaml 字段) + src/generated/limp_home_table.cpp (LIMP_HOME_CONFIG 实例) + tests/test_limp_home_runtime.cpp (15/15 单测通过) + src/layer3/display_data_types.h (DisplayLimpHomeState struct, PR 44) + src/layer3/shm_data_source.cpp (m_limp_home + onTick 喂 + copy snapshot, PR 44) + src/layer3/qt_data_binder.cpp/h (Q_PROPERTY 4 字段 + limpHomeChanged signal, PR 44) + src/layer3/dashboard_backend.cpp/h (Q_PROPERTY 4 字段透传, PR 44) + tests/test_shm_data_source.cpp (Test 12 集成, 12/12 通过, PR 44) + src/ui/LimpHomePanel.qml (PR 46 QML 端入口, L1/L2/L3 颜色 + 闪烁) + src/ui/DashboardMain.qml (PR 46 挂载点 y=180 z=100)
 
 ---
 
@@ -70,6 +70,7 @@
 | L3 绑定 | `src/layer3/qt_data_binder.cpp/h` (Q_PROPERTY limpHomeLevel/Active/MessageZh/MessageEn + limpHomeChanged() signal) |
 | L3 胶水 | `src/layer3/dashboard_backend.cpp/h` (Q_PROPERTY 4 字段透传, 两处 connect m_qtBinder→limpHomeChanged) |
 | L3 集成测试 | `tests/test_shm_data_source.cpp` Test 12 (12/12 通过, C 模式 binding path: 默认 NORMAL + message 空 + reset+tick + binder 透传 + 完整 onTick 链路) |
+| QML 端入口 | `src/ui/LimpHomePanel.qml` (PR 46 新增, 顶部居中 y=180, 480×50, L1 黄色不闪 / L2-L3 橙色/红色 1Hz 闪烁, 文案根据 currentLanguage 切换 zh/en, 整面板在 limpHomeActive=false 时隐藏) + `src/ui/DashboardMain.qml` (PR 46 挂载点) |
 | 验证日期 | 2026-06-04 (PR 43) + 2026-06-04 (PR 44 L3 接入) |
 | 验证结果 | ctest 23/24 pass (L1+L2 零回归; L3 ShmDataSourceTest 5 个失败属 pre-existing theme manager 时间相关, 见 PR 44 commit) |
 
@@ -83,3 +84,4 @@
 | 2026-06-04 | 1.1 | 状态 Approved → Implemented (PR 43 L2+test 升级), 实现版本填 limp_home_runtime.cpp + config/limp_home.yaml + generated/limp_home_*.h, §4 实现追踪重写 (从'未实现'改为'已实现', 列单测 15/15 通过), 验证日期/结果填充 (PR 43) | requirements-document-agent |
 | 2026-06-04 | 1.1 | INDEX 标题三角矛盾解决: 'LCD背光超时逻辑' → '跛行模式 (Limp-Home Mode)' (.md 优先). 类型 Functional → Safety, Reliability (跟 .md 一致, ISO 26262 ASIL B). 优先级 Low → High (安全相关). §4 实现追踪加 '未实现' 诚实标注 (LimpHomeManager.cpp + limp_home.yaml 待创建). 状态保持 Approved (PR 37) | requirements-document-agent |
 | 2026-06-04 | 1.2 | PR 44 L3 数据流接入: 8 文件改动 (display_data_types.h DisplayLimpHomeState + shm_data_source.cpp m_limp_home/onTick 喂/copy snapshot + qt_data_binder Q_PROPERTY 4 字段 + dashboard_backend 透传 + Test 12 集成 12/12). 同步修坑 #1 (L2 struct 字段 `signals` 改名 `signalStatus` 避开 Qt `signals` macro). 同步改坑 #5 (新增 src/ui/images/.gitkeep). §1 实现版本 + §4 实现追踪扩展 L3 字段. 验证日期/结果: ctest 23/24 pass, L1/L2/L3 零回归 (ShmDataSourceTest 5 个 pre-existing theme 时间相关失败, 不属本 PR 引入) | requirements-document-agent |
+| 2026-06-04 | 1.3 | PR 46 QML 端入口: 新增 src/ui/LimpHomePanel.qml (480×50 顶部居中 y=180 z=100, L1 黄色不闪 + L2/L3 橙红色 1Hz 闪烁, 文案根据 currentLanguage 切换 zh/en, 整面板 limpHomeActive=false 时隐藏) + src/ui/DashboardMain.qml 挂载点. §1 实现版本追加 QML 端, §4 新增 'QML 端入口' 行. SYS-003 端到端完成 (PR 43 L2 + PR 44 L3 + PR 46 QML) | requirements-document-agent |

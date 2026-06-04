@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 44 同步, LimpHomeRuntime L3 数据流接入 + L2 struct `signals` → `signalStatus` 改名)
+最后更新: 2026-06-04 (PR 46 同步, LimpHomePanel QML 端入口, SYS-003 跛行模式端到端完成)
 
 ## 统计
 
@@ -145,6 +145,17 @@
 > - 验证: ctest 23/24 pass (L1+L2 零回归; ShmDataSourceTest 5 个 pre-existing theme manager 时间相关失败 + DashboardBackendTest 1 个 indicatorOn pre-existing, 均不属本 PR 引入)
 >
 
+> **PR 46 同步说明**: 1 条代码 PR (LimpHomePanel QML 端入口, 配 PR 43 L2+test + PR 44 L3 数据流完成 SYS-003 跛行模式端到端):
+> - **REQ-SYS-003** (跛行模式) **QML 端入口**: PR 44 已 ship L3 数据流接入 (Q_PROPERTY 4 字段), 但 QML 端无显示组件. PR 46 补 2 文件:
+>   - `src/ui/LimpHomePanel.qml` (新增, 480×50) — 顶部居中面板, 整面板 visible=`dashboard.limpHomeActive`, 颜色随 level 变化 (L1=#FFAA00 黄色不闪, L2=#FF6600 橙色 1Hz 闪烁, L3=#FF2200 红色 1Hz 闪烁), 文案根据 `dashboard.currentLanguage` 切换 zh_CN → `limpHomeMessageZh` / en_US → `limpHomeMessageEn`, 显隐过渡 200ms `Behavior on opacity`
+>   - `src/ui/DashboardMain.qml` (扩展, L325-333 挂载点) — `LimpHomePanel { anchors.horizontalCenter: parent.horizontalCenter; y: 180; z: 100 }` (紧贴 AlarmBanner L320-322 下方 y=88, 间距 100px)
+> - **设计决策**:
+>   - 位置 y=180: AlarmBanner y=88 占顶部, y=180 给 LimpHomePanel 留 100px 间距, 不挡中心 SpeedGauge (y≈120-600)
+>   - z=100: 比 indicatorBar (z=5) / chime panel 高, 但比 AlarmBanner (z=9999) 低, 确保报警横幅始终最上层
+>   - 闪烁 1Hz: 跟 indicator flashHz=1 统一 (engineLight 故障闪烁), L1 不闪因为是"轻度"
+>   - 4 Q_PROPERTY 4 字段的运用: `limpHomeLevel` (0/1/2/3) 决定颜色 + 闪烁; `limpHomeActive` (派生 level>0) 决定 visible; `limpHomeMessageZh/En` 决定文案
+> - **范围限制 (跟 PR 44 一致)**: 不动 SYS-005 黑屏/白屏检测 (仍待 PR 47+) / 不动 ALM-001/002 (无 .md) / 不动 IND 1-5 (无 .md) / 不动任何其他 PR 同步说明块 / 不动统计表 (SYS 类别 5/0/0 → 5/0/0, 已 Implemented 没变)
+> - 验证: ctest 23/24 pass (L1+L2/L3 零回归; DashboardBackendTest 1 个 pre-existing segfault 跟 PR 44 撞名, 见坑 #7 留 PR 47 修) + QML 文件由 `file(COPY ${UI_DIR}/)` 自动复制到 build/qml/, 无需改 CMakeLists.txt
 
 > **PR 41 同步说明**: 5 条 SIG 标题错位修齐 (.md 优先规则, 跟 SIG-002 修法 + PR 30 修 HYBRID/IND + PR 35 修 SIG-002 + PR 37 三角矛盾同形状, 0 cpp 改动, 纯 docs sync):
 > - **REQ-SIG-011**: INDEX "驾驶员安全带状态信号" → .md "副驾占用信号 (passenger_occupied)" (跟 .md 一致, 类型 Safety → Functional, 实现版本改 can_ids.yaml:L90 + shm_data_source:L322)

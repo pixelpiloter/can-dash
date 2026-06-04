@@ -321,6 +321,15 @@ ApplicationWindow {
         id: alarmBanner
     }
 
+    // ─── 跛行模式提示面板 (PR 46: SYS-003 QML 端入口) ───
+    // 数据来源 PR 44 L3 数据流接入 (LimpHomeRuntime → Q_PROPERTY 4 字段)
+    // 位置: 顶部居中, AlarmBanner 下方 y=180, 整面板在 limpHomeActive=false 时隐藏
+    LimpHomePanel {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 180
+        z: 100
+    }
+
     // ─── 底部状态栏 ───
     Rectangle {
         anchors.bottom: parent.bottom
