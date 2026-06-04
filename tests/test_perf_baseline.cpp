@@ -1,7 +1,7 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 7 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 8 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
@@ -9,6 +9,7 @@
 //   5. 完整 16ms tick (write + read + convert + 22 alarm keys) — 端到端
 //   6. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
 //   7. TripComputer tick + tickEnergy (派生指标积分) — PR 1-4 L2 derived metrics 成本
+//   8. ThemeManager tick + colors (AUTO 模式 hour 推算 + DAY/NIGHT 评估) — PR 7 L2 主题成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -37,6 +38,7 @@
 #include "layer1/shm/shm_display.h"
 #include "layer2/alarm_runtime.h"
 #include "layer2/limp_home_runtime.h"
+#include "layer2/theme_manager.h"
 #include "layer2/time_util.h"
 #include "layer2/trip_computer.h"
 #include "generated/alarm_rule_def.h"
@@ -372,6 +374,36 @@ void bench_trip_computer_tick(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── ThemeManager tick + colors (PR 7 L2 主题成本) ───
+// 模拟 16ms tick 周期内: ShmDataSource 推 shm.last_commit_ms 调 m_theme.tick()
+// + m_theme.colors() 取 5 色板填 snapshot (background/foreground/accent/warning/critical)
+// 跟 ShmDataSource::onTick 调用顺序一致: tick(now_ms) + colors() + currentMode() + isDay()
+// ThemeManager 在 candash:: 命名空间 (跟 TripComputer 一样是 candash::, 跟 limp_home 全局不同)
+void bench_theme_tick(std::vector<int64_t>& samples) {
+    candash::ThemeManager theme;
+    // 设 baseline = (12:00, ms=0), 跟默认一致, 测 AUTO 模式真实成本
+    // (PR 45 修过 baseline 漂移, 但 perf baseline 测纯算法成本不需要 PR 45 招数)
+    theme.setTimeBaseline(12, 0);
+    // 时间起点: 假装现在 t=1000ms (跟 trip_computer_tick 一致, 跟 16ms QTimer 节奏对齐)
+    uint64_t now = 1000;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 跟 ShmDataSource::onTick 调用顺序一致: tick 推算 hour, 然后读 5 色板 + mode + isDay
+        theme.tick(now);
+        const candash::ThemeColors tc = theme.colors();
+        // 模拟 snapshot 字段填充: 5 色 + mode + isDay
+        // (volatile 防止编译器把整个读链优化掉)
+        volatile uint8_t mode = static_cast<uint8_t>(theme.currentMode());
+        volatile bool day = theme.isDay();
+        volatile uint32_t bg = tc.background;
+        (void)mode; (void)day; (void)bg;
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -403,7 +435,7 @@ int main() {
         return 1;
     }
 
-    // 跑 7 个基准
+    // 跑 8 个基准
     printf("[1] shm write + commit (memcpy + checksum + msync + frame_seq)\n");
     BenchStats s1 = run_bench("shm_write_commit", bench_shm_write_commit);
 
@@ -425,12 +457,16 @@ int main() {
     printf("\n[7] TripComputer tick + tickEnergy (派生指标积分: 距离/均速/时长/能耗/续航可信度) (PR 1-4)\n");
     BenchStats s7 = run_bench("trip_computer_tick", bench_trip_computer_tick);
 
+    printf("\n[8] ThemeManager tick + colors (AUTO 模式 hour 推算 + DAY/NIGHT 评估 + 5 色板) (PR 7)\n");
+    BenchStats s8 = run_bench("theme_tick", bench_theme_tick);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
     // 单 dash 端 tick = read + convert + alarm eval + trip_computer
     int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns + s7.median_ns;
     int64_t full_tick_ns = s5.median_ns;
     int64_t limp_tick_ns = s6.median_ns;
     int64_t trip_tick_ns = s7.median_ns;
+    int64_t theme_tick_ns = s8.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -449,6 +485,8 @@ int main() {
            full_tick_ns, full_tick_ns / 16000000.0 * 100.0);
     printf("  limp_home tick           : %7" PRId64 " ns (%.4f%%) (PR 43 L2 runtime)\n",
            limp_tick_ns, limp_tick_ns / 16000000.0 * 100.0);
+    printf("  theme tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 7 L2 主题, 不计入 dash tick 总计)\n",
+           theme_tick_ns, theme_tick_ns / 16000000.0 * 100.0);
     printf("  → headroom for QML/Paint : %.2f%% (= 16ms - %" PRId64 " ns)\n",
            100.0 - budget_pct, dash_tick_ns);
 
@@ -469,6 +507,8 @@ int main() {
     printf("  \"limp_home_eval_p99_ns\":       %" PRId64 ",\n", s6.p99_ns);
     printf("  \"trip_computer_tick_median_ns\": %" PRId64 ",\n", s7.median_ns);
     printf("  \"trip_computer_tick_p99_ns\":    %" PRId64 ",\n", s7.p99_ns);
+    printf("  \"theme_tick_median_ns\":         %" PRId64 ",\n", s8.median_ns);
+    printf("  \"theme_tick_p99_ns\":            %" PRId64 ",\n", s8.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);

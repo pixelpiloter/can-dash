@@ -274,6 +274,7 @@ add_test(NAME DisplayManagerTest COMMAND test_display_manager)
 add_executable(test_perf_baseline tests/test_perf_baseline.cpp
     ${LAYER2_DIR}/alarm_runtime.cpp
     ${LAYER2_DIR}/limp_home_runtime.cpp  # PR 47 perf baseline
+    ${LAYER2_DIR}/theme_manager.cpp  # PR 58 perf baseline
     ${LAYER2_DIR}/time_util.cpp
     ${LAYER2_DIR}/trip_computer.cpp  # PR 57 perf baseline
     ${LAYER1_DIR}/shm/shm_display.cpp
