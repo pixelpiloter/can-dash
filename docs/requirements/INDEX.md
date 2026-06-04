@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 32 同步)
+最后更新: 2026-06-04 (PR 33 同步)
 
 ## 统计
 
@@ -8,11 +8,23 @@
 |------|------|----------|-------------|----------|
 | ALM (报警) | 12 | 0 | 11 | 1 |
 | HYBRID (混动特有) | 6 | 2 | 4 | 0 |
-| IND (指示灯) | 12 | 12 | 0 | 0 |
+| IND (指示灯) | 12 | 5 | 7 | 0 |
 | SIG (CAN信号) | 19 | 17 | 1 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
 | SYS (系统) | 5 | 4 | 1 | 0 |
-| **合计** | **59** | **40** | **17** | **2** |
+| **合计** | **59** | **33** | **24** | **2** |
+
+> **PR 33 同步说明**: IND 6-12 状态同步 Approved → Implemented + INDEX 6 处标题错位修齐 (跟 PR 30 修 HYBRID 同形状):
+> - REQ-IND-006: "高压警示灯" → "高压指示灯" (跟 .md 一致), Approved → Implemented (indicators.yaml:high_voltage_light L32 + IndicatorLight.qml)
+> - REQ-IND-007: "驾驶模式指示灯" → "纯电模式指示灯" (跟 .md 一致), Approved → Implemented (ev_mode_light L47 + ev_mode_active L85)
+> - REQ-IND-008: "充电指示灯" → "混动模式指示灯" (跟 .md 一致), Approved → Implemented (hybrid_mode_light L55 + hybrid_mode_active L101)
+> - REQ-IND-009: "系统故障指示灯" → "发动机运行指示灯" (跟 .md 一致), Approved → Implemented (engine_run_light L39 + engine_boost_active L117 + engine_fault_alarm L147)
+> - REQ-IND-010: "电池警告灯" → "能量流指示灯" (跟 .md 一致), Approved → Implemented (energy_flow_light L63 + engine_boost_active L117 + charge_mode_active L136)
+> - REQ-IND-011: "充电进行中指示灯" → "充电中指示灯" (跟 .md 一致, 文字简化), Approved → Implemented (charge_light L71 + charge_mode_active L136)
+> - REQ-IND-012: 标题匹配, Approved → Implemented (charge_fault_light L78 + charge_fault_alarm L163, flash=2Hz)
+> - 合计 IND 12/0/0 → 5/0/7 (Approved -7, Implemented +7), 整体 40/17/2 → 33/24/2
+>
+> **范围限制**: 不动 IND 1-5 (无 .md 文件, 历史欠账, 跟 PR 24/27/30 修 IND 不补的策略一致) / 不动 SIG/UI/SYS 类别表 (跟 .md 一致) / 不动 ALM/HYBRID (PR 28-32 已同步完).
 
 > **PR 32 同步说明**: REQ-SYS-005 状态 Approved → Implemented (PR 17 SelfTestRuntime 已实现**信号自检**子功能), 实现版本 + SelfTestRuntime (PR 17) + 标"QML 黑屏/白屏检测待 PR 33". SYS 类别 5/0/0 → 4/1/0, 合计 41/16/2 → 40/17/2.
 >
@@ -91,13 +103,13 @@
 | REQ-IND-003 | 电机温度警告指示灯 | Functional | High | Approved | - |
 | REQ-IND-004 | Ready/Go 指示灯 | Functional | Medium | Approved | - |
 | REQ-IND-005 | 高压指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-006 | 高压警示灯 | Functional | High | Approved | - |
-| REQ-IND-007 | 驾驶模式指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-008 | 充电指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-009 | 系统故障指示灯 | Safety | Critical | Approved | - |
-| REQ-IND-010 | 电池警告灯 | Safety | High | Approved | - |
-| REQ-IND-011 | 充电进行中指示灯 | Functional | Medium | Approved | - |
-| REQ-IND-012 | 充电故障指示灯 | Safety | High | Approved | - |
+| REQ-IND-006 | 高压指示灯 | Functional | High | Implemented | indicators.yaml:high_voltage_light (L32) + IndicatorLight.qml |
+| REQ-IND-007 | 纯电模式指示灯 (EV Mode Light) | Functional | Medium | Implemented | indicators.yaml:ev_mode_light (L47) + alarm_rules.yaml:ev_mode_active (L85) |
+| REQ-IND-008 | 混动模式指示灯 (Hybrid Mode Light) | Functional | Medium | Implemented | indicators.yaml:hybrid_mode_light (L55) + alarm_rules.yaml:hybrid_mode_active (L101) |
+| REQ-IND-009 | 发动机运行指示灯 (Engine Run Light) | Safety | Critical | Implemented | indicators.yaml:engine_run_light (L39) + alarm_rules.yaml:engine_boost_active (L117) + engine_fault_alarm (L147) |
+| REQ-IND-010 | 能量流指示灯 (Energy Flow Light) | Safety | High | Implemented | indicators.yaml:energy_flow_light (L63) + alarm_rules.yaml:engine_boost_active (L117) + charge_mode_active (L136) |
+| REQ-IND-011 | 充电中指示灯 (Charge Light) | Functional | Medium | Implemented | indicators.yaml:charge_light (L71) + alarm_rules.yaml:charge_mode_active (L136) |
+| REQ-IND-012 | 充电故障指示灯 (Charge Fault Light) | Safety | High | Implemented | indicators.yaml:charge_fault_light (L78) + alarm_rules.yaml:charge_fault_alarm (L163) |
 
 ### SIG (CAN信号) — 19项
 

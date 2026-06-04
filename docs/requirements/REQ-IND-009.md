@@ -1,12 +1,12 @@
 #REQ-IND-009|发动机运行指示灯 (Engine Run Light)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Functional
 **优先级**: Medium
-**来源**:   indicators.yaml (已有) / alarm_rules.yaml (engine_boost_active / engine_fault_alarm)
+**来源**:   indicators.yaml (已有) / alarm_rules.yaml (engine_boost_active L117 / engine_fault_alarm L147)
 **创建日期**: 2026-05-31
-**实现版本**: v1.0
+**实现版本**: indicators.yaml:engine_run_light (L39) + alarm_rules.yaml:engine_boost_active (L117) + engine_fault_alarm (L147)
 
 ---
 
@@ -57,11 +57,14 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/indicators.yaml` |
-| 控制规则 | `config/alarm_rules.yaml` (engine_boost_active, engine_fault_alarm) |
-| QML组件 | `src/ui/IndicatorLight.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/indicators.yaml` (engine_run_light L39, 60x60, x=540/y=260 位置, white #FFFFFF) |
+| 控制规则 | `config/alarm_rules.yaml` (engine_boost_active L117: energy_mode==2 触发 + engine_fault_alarm L147: engine_fault==1 触发, 优先级最高) |
+| QML组件 | `src/ui/IndicatorLight.qml` (image_on = engine_run_white.png 亮, image_off = engine_run_dim.png 暗) |
+| 状态信号 | `energy_mode` (REQ-SIG-018, 模式 2) + `engine_fault` (REQ-ALM-010 关联信号) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (双规则评估, engine_fault 覆盖) + `src/layer2/indicator_runtime.cpp` (亮/灭/闪烁渲染) |
+| QML 显示位置 | `src/ui/DashboardMain.qml` 故障灯区 (540,260, 跟 bat_warn_light 等并排) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 18/18 pass (AlarmRuntimeTest 验证 2 条 engine_* 规则 + IndicatorRuntimeTest 验证映射); yaml_to_c.py 生成的 ALARM_RULE_TABLE 含 engine_boost_active + engine_fault_alarm |
 
 ---
 
@@ -70,3 +73,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §3 实现追踪同步: 状态 Approved → Implemented, 实现版本 + 行号 + 状态信号 + 关联 L2 + QML 位置 + 验证 (PR 33) | can-dash-jd-autopilot |

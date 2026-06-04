@@ -1,12 +1,12 @@
 #REQ-IND-006|高压指示灯 (High Voltage Light)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Functional
 **优先级**: Medium
 **来源**:   indicators.yaml (已有)
 **创建日期**: 2026-05-31
-**实现版本**: v1.0
+**实现版本**: indicators.yaml:high_voltage_light (L32) + IndicatorLight.qml
 
 ---
 
@@ -67,10 +67,13 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/indicators.yaml` |
-| QML组件 | `src/ui/IndicatorLight.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/indicators.yaml` (high_voltage_light L32, 50x50, 左上角位置, orange #FF8800) |
+| QML组件 | `src/ui/IndicatorLight.qml` (通用 light 渲染, image_on/image_off 切换) |
+| 状态信号 | `bat_volt` (REQ-SIG-001) — 高于阈值激活, 来自 can_ids.yaml BMS 帧 |
+| 关联 L2 组件 | `src/layer2/can_converter.cpp` (信号桥接) + `src/layer2/alarm_runtime.cpp` (可选告警联动) |
+| QML 显示位置 | `src/ui/DashboardMain.qml` 左上角, 始终可见, 不随视图切换 |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | ctest 18/18 pass (含 IndicatorRuntimeTest 105 行覆盖 onValueChanged / signal mapping); yaml_to_c.py 生成的 indicator_runtime 数据表 0 错 |
 
 ---
 
@@ -79,3 +82,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §4 实现追踪同步: 状态 Approved → Implemented, 实现版本 + indicators.yaml 行号 + 状态信号 + 关联 L2 + QML 位置 + 验证日期/结果 (PR 33) | can-dash-jd-autopilot |
