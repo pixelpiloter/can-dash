@@ -96,7 +96,11 @@ int main(int argc, char** argv) {
         backend.setDataBinder(std::move(binder));
         backend.setDataSource(std::move(source));
 
-        DisplaySnapshot s;
+        // PR 49b: DisplaySnapshot s; 走 default-init, indicators 字段 (12 灯)
+        // 残留栈垃圾 → binder buildIndicatorStates 收到 lights[i].on 随机 true/false
+        // → indicatorOn('left_turn_light') 间歇返回 true, 测试 [4] 5/10 失败
+        // 修法: 用 s{} 值初始化, 全部字段清零
+        DisplaySnapshot s{};
         s.data.vehicle_speed = 50.0f;
         s.health = HEALTH_OK;
         raw_source->pushSnapshot(s);
