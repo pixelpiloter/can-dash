@@ -26,7 +26,7 @@
 |----|------|------|--------|------|---------|
 | REQ-ALM-001 | 电池过压报警 | Safety | High | Implemented | alarm_rules.yaml:bat_overvolt (L5) |
 | REQ-ALM-002 | 电池欠压报警 | Safety | High | Implemented | alarm_rules.yaml:bat_undervolt (L21) |
-| REQ-ALM-003 | 电量低报警 (SOC<10%) | Safety | Medium | Implemented | alarm_rules.yaml:bat_soc_low (L37) |
+| REQ-ALM-003 | 电量严重不足报警 (SOC<8%) | Safety | Medium | Implemented | alarm_rules.yaml:soc_critical_low (L53) |
 | REQ-ALM-004 | 电机温度过高报警 | Safety | High | Implemented | alarm_rules.yaml:motor_overtemp (L69) |
 | REQ-ALM-005 | 胎压低报警 | Safety, Functional | Critical | Implemented | - |
 | REQ-ALM-006 | 纯电模式指示灯控制 (EV Mode Active) | Functional | High | Implemented | alarm_rules.yaml:ev_mode_active (L85) |
