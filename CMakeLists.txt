@@ -95,9 +95,11 @@ if(Qt6_FOUND)
     file(COPY ${UI_DIR}/images/ DESTINATION ${CMAKE_BINARY_DIR}/qml/images/)
 
     # 主应用
+    # PR 44 修复: ShmDataSource 引用全部 L2 manager (theme/warning/view/settings/chime/self_test/limp_home + trip),
+    #             can-dash 要 link 它们, 不再只 link language_manager
     add_executable(can-dash
         src/main.cpp
-        ${LAYER2_LANGUAGE_SOURCES}
+        ${LAYER2_SOURCES}
         ${LAYER1_SOURCES}
         ${LAYER3_SOURCES}
         ${GENERATED_SOURCES}
@@ -279,13 +281,25 @@ add_test(NAME TransportTest COMMAND test_transport)
 # 仅在 Qt6 可用时编译（依赖 QtCore）
 if(Qt6_FOUND)
     # ShmDataSource（Qt + Layer 1 shm）
+    # PR 44 修复: ShmDataSource 包含所有 L2 manager (theme/warning/view/settings/chime/self_test/limp_home + trip)
+    #            + 全部 GENERATED_SOURCES (signal_table 提供 SIGNAL_TABLE 给 self_test)
     add_executable(test_shm_data_source tests/test_shm_data_source.cpp
         ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER1_DIR}/shm/shm_display.cpp
-        ${LAYER2_DIR}/time_util.cpp)
+        ${LAYER2_DIR}/time_util.cpp
+        ${LAYER2_DIR}/trip_computer.cpp
+        ${LAYER2_DIR}/theme_manager.cpp
+        ${LAYER2_DIR}/warning_manager.cpp
+        ${LAYER2_DIR}/view_manager.cpp
+        ${LAYER2_DIR}/settings_manager.cpp
+        ${LAYER2_DIR}/chime_manager.cpp
+        ${LAYER2_DIR}/self_test_runtime.cpp
+        ${LAYER2_DIR}/limp_home_runtime.cpp
+        ${GENERATED_SOURCES})
     target_include_directories(test_shm_data_source PRIVATE
-        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_shm_data_source PRIVATE Qt6::Core)
+    add_dependencies(test_shm_data_source run_yaml_to_c)
     add_test(NAME ShmDataSourceTest COMMAND test_shm_data_source)
 
     # QtDataBinder（Qt + Layer 2 language）
@@ -298,29 +312,52 @@ if(Qt6_FOUND)
     add_test(NAME QtDataBinderTest COMMAND test_qt_data_binder)
 
     # DashboardBackend 胶水（Qt + Layer 1 shm + Layer 2 language + 所有 Layer 3）
+    # PR 44 修复: shm_data_source 引用全部 L2 manager, test_dashboard_backend 也要 link 它们
     add_executable(test_dashboard_backend tests/test_dashboard_backend.cpp
         ${LAYER3_DIR}/dashboard_backend.cpp
         ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER3_DIR}/qt_data_binder.cpp
         ${LAYER1_DIR}/shm/shm_display.cpp
         ${LAYER2_DIR}/time_util.cpp
-        ${LAYER2_DIR}/language_manager.cpp)
+        ${LAYER2_DIR}/language_manager.cpp
+        ${LAYER2_DIR}/trip_computer.cpp
+        ${LAYER2_DIR}/theme_manager.cpp
+        ${LAYER2_DIR}/warning_manager.cpp
+        ${LAYER2_DIR}/view_manager.cpp
+        ${LAYER2_DIR}/settings_manager.cpp
+        ${LAYER2_DIR}/chime_manager.cpp
+        ${LAYER2_DIR}/self_test_runtime.cpp
+        ${LAYER2_DIR}/limp_home_runtime.cpp
+        ${GENERATED_SOURCES})
     target_include_directories(test_dashboard_backend PRIVATE
-        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_dashboard_backend PRIVATE Qt6::Core)
+    add_dependencies(test_dashboard_backend run_yaml_to_c)
     add_test(NAME DashboardBackendTest COMMAND test_dashboard_backend)
 
     # ChimeManager 数据流集成 (PR 14): ShmDataSource::onTick 桥接 warning→chime
+    # PR 44 修复: shm_data_source 引用全部 L2 manager, 跟 test_shm_data_source 同 shape
     add_executable(test_chime_data_flow tests/test_chime_data_flow.cpp
         ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER1_DIR}/shm/shm_display.cpp
-        ${LAYER2_DIR}/time_util.cpp)
+        ${LAYER2_DIR}/time_util.cpp
+        ${LAYER2_DIR}/trip_computer.cpp
+        ${LAYER2_DIR}/theme_manager.cpp
+        ${LAYER2_DIR}/warning_manager.cpp
+        ${LAYER2_DIR}/view_manager.cpp
+        ${LAYER2_DIR}/settings_manager.cpp
+        ${LAYER2_DIR}/chime_manager.cpp
+        ${LAYER2_DIR}/self_test_runtime.cpp
+        ${LAYER2_DIR}/limp_home_runtime.cpp
+        ${GENERATED_SOURCES})
     target_include_directories(test_chime_data_flow PRIVATE
-        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_chime_data_flow PRIVATE Qt6::Core)
+    add_dependencies(test_chime_data_flow run_yaml_to_c)
     add_test(NAME ChimeDataFlowTest COMMAND test_chime_data_flow)
 
     # SelfTestRuntime 数据流集成 (PR 17): ShmDataSource::onTick 桥接 signal→self_test
+    # PR 44 修复: shm_data_source 引用全部 L2 manager, 跟 test_shm_data_source 同 shape
     add_executable(test_self_test_data_flow tests/test_self_test_data_flow.cpp
         ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER3_DIR}/qt_data_binder.cpp
@@ -328,7 +365,14 @@ if(Qt6_FOUND)
         ${LAYER1_DIR}/shm/shm_display.cpp
         ${LAYER2_DIR}/time_util.cpp
         ${LAYER2_DIR}/language_manager.cpp
+        ${LAYER2_DIR}/trip_computer.cpp
+        ${LAYER2_DIR}/theme_manager.cpp
+        ${LAYER2_DIR}/warning_manager.cpp
+        ${LAYER2_DIR}/view_manager.cpp
+        ${LAYER2_DIR}/settings_manager.cpp
+        ${LAYER2_DIR}/chime_manager.cpp
         ${LAYER2_DIR}/self_test_runtime.cpp
+        ${LAYER2_DIR}/limp_home_runtime.cpp
         ${GENERATED_SOURCES})
     target_include_directories(test_self_test_data_flow PRIVATE
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})

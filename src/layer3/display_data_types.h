@@ -129,6 +129,20 @@ typedef struct {
     uint32_t out_of_range;            // 越界信号数 (≥3 → FAIL, >0 → WARN)
 } DisplaySelfTestState;
 
+// ─── LimpHomeRuntime (PR 44) ───
+// L3 镜像 L2 LimpHomeQueryResult (字段一致, 避免 DisplaySnapshot 跨层 include L2 header)
+// 由 ShmDataSource 在 onTick() 中从 m_limp_home.query() 取出填入
+// level: 0=NORMAL, 1=L1, 2=L2, 3=L3 (跟 L2 LimpHomeLevel enum 一致)
+// QML 端按 level 切跛行模式警告条 + 弹 L1/L2/L3 文案 (msg 跟 L2 config 同步)
+// 跟 selfTestChanged-style NOTIFY 同模式: 1 个 NOTIFY 推 4 字段 (level + active + msg_zh + msg_en)
+typedef struct {
+    uint8_t  level;             // 0=NORMAL, 1=L1, 2=L2, 3=L3
+    uint8_t  active;            // 派生: level > 0 (0/1)
+    uint8_t  _limp_home_pad[2]; // 对齐到 4 字节边界
+    char     message_zh[128];   // L1/L2/L3 中文文案 (NORMAL 时为空)
+    char     message_en[128];   // L1/L2/L3 英文文案 (NORMAL 时为空)
+} DisplayLimpHomeState;
+
 // ─── 完整数据快照（DataSource 推送给 Binder 的数据结构）───
 typedef struct {
     DisplayData      data;            // 28 业务字段
@@ -202,6 +216,12 @@ typedef struct {
     // 5 计数: critical_received/total + critical_stuck + warn_stuck + out_of_range
     //   (QML 端详情面板展示 "X/Y critical 已就绪")
     DisplaySelfTestState self_test;
+
+    // ─── LimpHomeRuntime (PR 44) ───
+    // 跛行模式状态: 由 ShmDataSource 在 onTick() 中从 m_limp_home.query() 复制填入
+    // 跟 self_test 同模式: 单一字段, 避免数组
+    // QML 端按 level 切跛行模式警告条 (L1=黄 / L2=橙 / L3=红) + 文案
+    DisplayLimpHomeState limp_home;
 } DisplaySnapshot;
 
 #ifdef __cplusplus

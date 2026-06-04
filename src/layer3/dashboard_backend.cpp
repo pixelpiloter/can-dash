@@ -42,6 +42,7 @@ void DashboardBackend::init() {
     connect(m_qtBinder, &QtDataBinder::viewChanged,     this, &DashboardBackend::viewChanged);      // PR 13
     connect(m_qtBinder, &QtDataBinder::chimeChanged,    this, &DashboardBackend::chimeChanged);     // PR 14
     connect(m_qtBinder, &QtDataBinder::selfTestChanged, this, &DashboardBackend::selfTestChanged);  // PR 17
+    connect(m_qtBinder, &QtDataBinder::limpHomeChanged, this, &DashboardBackend::limpHomeChanged);  // PR 44
 
     // 业务注入
     m_binder = std::move(binder);
@@ -91,8 +92,9 @@ void DashboardBackend::setDataBinder(std::unique_ptr<IDataBinder> binder) {
         connect(m_qtBinder, &QtDataBinder::tripChanged, this, &DashboardBackend::tripChanged);  // v3 探针延伸
         connect(m_qtBinder, &QtDataBinder::themeChanged, this, &DashboardBackend::themeChanged);  // PR 7
         connect(m_qtBinder, &QtDataBinder::warningChanged, this, &DashboardBackend::warningChanged);  // PR 9
-        connect(m_qtBinder, &QtDataBinder::chimeChanged, this, &DashboardBackend::chimeChanged);  // PR 14
+        connect(m_qtBinder, &QtDataBinder::chimeChanged,    this, &DashboardBackend::chimeChanged);  // PR 14
         connect(m_qtBinder, &QtDataBinder::selfTestChanged, this, &DashboardBackend::selfTestChanged);  // PR 17
+        connect(m_qtBinder, &QtDataBinder::limpHomeChanged, this, &DashboardBackend::limpHomeChanged);  // PR 44
     }
     m_binder = std::move(binder);
 }
@@ -144,6 +146,12 @@ int   DashboardBackend::selfTestCriticalTotal() const     { return m_qtBinder ? 
 int   DashboardBackend::selfTestCriticalStuck() const     { return m_qtBinder ? m_qtBinder->selfTestCriticalStuck()     : 0; }
 int   DashboardBackend::selfTestWarnStuck() const         { return m_qtBinder ? m_qtBinder->selfTestWarnStuck()         : 0; }
 int   DashboardBackend::selfTestOutOfRange() const        { return m_qtBinder ? m_qtBinder->selfTestOutOfRange()        : 0; }
+
+// 跛行模式 getter 透传 (PR 44)
+int     DashboardBackend::limpHomeLevel() const     { return m_qtBinder ? m_qtBinder->limpHomeLevel()     : 0; }
+bool    DashboardBackend::limpHomeActive() const    { return m_qtBinder && m_qtBinder->limpHomeActive(); }
+QString DashboardBackend::limpHomeMessageZh() const { return m_qtBinder ? m_qtBinder->limpHomeMessageZh() : QString(); }
+QString DashboardBackend::limpHomeMessageEn() const { return m_qtBinder ? m_qtBinder->limpHomeMessageEn() : QString(); }
 
 // 设置 getter 透传 (PR 13)
 int   DashboardBackend::settingsUnits() const             { return m_qtBinder ? m_qtBinder->settingsUnits()     : 0; }

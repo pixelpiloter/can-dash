@@ -92,6 +92,12 @@ class DashboardBackend : public QObject {
     Q_PROPERTY(int selfTestWarnStuck READ selfTestWarnStuck NOTIFY selfTestChanged)
     Q_PROPERTY(int selfTestOutOfRange READ selfTestOutOfRange NOTIFY selfTestChanged)
 
+    // 跛行模式 (PR 44) — 透传到 QtDataBinder (QML 端弹 L1/L2/L3 警告条)
+    Q_PROPERTY(int limpHomeLevel READ limpHomeLevel NOTIFY limpHomeChanged)
+    Q_PROPERTY(bool limpHomeActive READ limpHomeActive NOTIFY limpHomeChanged)
+    Q_PROPERTY(QString limpHomeMessageZh READ limpHomeMessageZh NOTIFY limpHomeChanged)
+    Q_PROPERTY(QString limpHomeMessageEn READ limpHomeMessageEn NOTIFY limpHomeChanged)
+
 public:
     explicit DashboardBackend(QObject* parent = nullptr);
     ~DashboardBackend() override;
@@ -171,6 +177,12 @@ public:
     int  selfTestWarnStuck() const;
     int  selfTestOutOfRange() const;
 
+    // 跛行模式 (PR 44) — 透传到 QtDataBinder
+    int     limpHomeLevel() const;
+    bool    limpHomeActive() const;
+    QString limpHomeMessageZh() const;
+    QString limpHomeMessageEn() const;
+
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
@@ -209,6 +221,7 @@ signals:
     void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
     void chimeChanged();     // PR 14: chimeActive/severity/freq/duration/repeat/volume 任一变化
     void selfTestChanged();  // PR 17: selfTestStatus + 5 计数任一变化
+    void limpHomeChanged();  // PR 44: limpHomeLevel + active + msg_zh + msg_en 任一变化
 
 private:
     std::unique_ptr<IDataSource> m_source;

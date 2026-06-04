@@ -17,6 +17,7 @@
 #include "layer2/settings_manager.h"  // 用户偏好 (PR 13)
 #include "layer2/chime_manager.h"     // 声音提示 (PR 14)
 #include "layer2/self_test_runtime.h" // 显示自检 (PR 17, 信号卡死/越界)
+#include "layer2/limp_home_runtime.h"  // 跛行模式 (PR 44, 关键信号超时)
 #include "generated/signal_def.h"     // SIGNAL_TABLE (SelfTestRuntime init 用, PR 17)
 #include <QTimer>
 #include <QObject>
@@ -94,6 +95,12 @@ public:
     // 注意: 参数名避开 Qt MOC 关键字 'signals', 改名 signal_defs
     void initSelfTestForTest(const SignalDef* signal_defs, int count);
 
+    // ─── LimpHomeRuntime setter (PR 44, 测试用注入) ───
+    // C 模式 (onTick 喂同一时间戳): 测 binding path, 不测 L1/L3 转换
+    // 测不了 stuck/reset 路径 (跟 SelfTest 限制一样), 但能验证 onTick 链路 + binder 透传
+    void tickLimpHomeForTest(uint64_t now_ms);
+    void resetLimpHomeForTest();
+
 private slots:
     void onTick();
 
@@ -147,6 +154,14 @@ private:
     candash::SelfTestRuntime m_self_test;
     bool     m_self_test_inited = false;  // SIGNAL_TABLE 还没 ready 时不喂数据
     uint64_t m_lastSelfTestTickMs = 0;    // 1Hz 节流
+
+    // LimpHomeRuntime (PR 44) — 状态由 ShmDataSource 唯一持有, binder 只读透传
+    // 启动时 init(&LIMP_HOME_CONFIG) 加载 yaml→C 生成的关键信号列表 + L1/L2/L3 阈值
+    // onTick 里对 2 个关键信号 (vehicle_speed + motor_rpm) 调 onValueChanged() 喂时间戳,
+    // 然后 tick(commit_ms) 推进超时状态机, query() 取出填到 snapshot.limp_home
+    // C 模式: 喂 + tick 用同一 commit_ms, elapsed=0 → 永远 NORMAL (跟 L2 单测的 stuck 行为对照)
+    // 注: LimpHomeRuntime 在全局 namespace, 不在 candash:: (跟其他 manager 不一样, PR 43 的设计选择)
+    LimpHomeRuntime m_limp_home;
 
     // 回调
     UpdateCallback m_updateCb;

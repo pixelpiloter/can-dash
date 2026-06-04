@@ -21,7 +21,8 @@ struct LimpHomeRuntimeState {
     int      timeoutSignalCount;   // 当前超时信号数
     int      consecutiveValidFrames;  // 连续有效帧 (用于恢复)
     int      signalCount;          // 监控的关键信号数
-    LimpHomeSignalStatus signals[8];
+    // 注: 字段名避开 Qt `signals` reserved macro (PR 44 修复, 见 l3-runtime-integration.md 坑 #1)
+    LimpHomeSignalStatus signalStatus[8];
 };
 
 // 查询结果

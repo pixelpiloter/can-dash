@@ -27,8 +27,8 @@ int main() {
         const auto& st = rt.state();
         TEST_ASSERT(st.signalCount == 2, "signalCount=2 (vehicle_speed+motor_rpm)");
         TEST_ASSERT(st.currentLevel == LIMP_LEVEL_NORMAL, "init level=NORMAL (未 tick)");
-        TEST_ASSERT(st.signals[0].display_key != nullptr, "signals[0] 有 display_key");
-        TEST_ASSERT(std::strcmp(st.signals[0].display_key, "vehicle_speed") == 0, "signals[0]=vehicle_speed");
+        TEST_ASSERT(st.signalStatus[0].display_key != nullptr, "signalStatus[0] 有 display_key");
+        TEST_ASSERT(std::strcmp(st.signalStatus[0].display_key, "vehicle_speed") == 0, "signalStatus[0]=vehicle_speed");
     }
 
     // ─── 测试 2: tick 后超时 → L1 (单关键信号超时) ───

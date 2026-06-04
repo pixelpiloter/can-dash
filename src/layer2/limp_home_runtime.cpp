@@ -10,15 +10,15 @@ void LimpHomeRuntime::init(const LimpHomeConfigDef* config) {
     m_state.currentLevel = LIMP_LEVEL_NORMAL;
     m_state.signalCount = config->critical_signals_count;
     for (int i = 0; i < m_state.signalCount && i < 8; ++i) {
-        m_state.signals[i].display_key = config->critical_signals[i];
-        m_state.signals[i].lastUpdateMs = 0;
-        m_state.signals[i].inTimeout = true;  // 启动时全部"超时", 等真实帧来恢复
+        m_state.signalStatus[i].display_key = config->critical_signals[i];
+        m_state.signalStatus[i].lastUpdateMs = 0;
+        m_state.signalStatus[i].inTimeout = true;  // 启动时全部"超时", 等真实帧来恢复
     }
 }
 
 int LimpHomeRuntime::findSignalIndex(const char* display_key) const {
     for (int i = 0; i < m_state.signalCount; ++i) {
-        if (std::strcmp(m_state.signals[i].display_key, display_key) == 0) {
+        if (std::strcmp(m_state.signalStatus[i].display_key, display_key) == 0) {
             return i;
         }
     }
@@ -28,7 +28,7 @@ int LimpHomeRuntime::findSignalIndex(const char* display_key) const {
 void LimpHomeRuntime::onValueChanged(const char* display_key, uint64_t now_ms) {
     int idx = findSignalIndex(display_key);
     if (idx < 0) return;  // 非关键信号忽略
-    m_state.signals[idx].lastUpdateMs = now_ms;
+    m_state.signalStatus[idx].lastUpdateMs = now_ms;
     // 注意: 不在这里设 inTimeout=false, 让 tick 主循环下次评估
     // (保持 was_timeout 边沿检测正确)
 }
@@ -40,16 +40,16 @@ void LimpHomeRuntime::tick(uint64_t now_ms) {
     int timeout_count = 0;
     int not_timeout_count = 0;  // 跟上一 tick 无关, 单纯看当前 inTimeout=false 计数
     for (int i = 0; i < m_state.signalCount; ++i) {
-        if (m_state.signals[i].lastUpdateMs == 0) {
+        if (m_state.signalStatus[i].lastUpdateMs == 0) {
             // 从未更新过, 视为超时
-            m_state.signals[i].inTimeout = true;
+            m_state.signalStatus[i].inTimeout = true;
             ++timeout_count;
         } else {
-            uint64_t elapsed = now_ms - m_state.signals[i].lastUpdateMs;
+            uint64_t elapsed = now_ms - m_state.signalStatus[i].lastUpdateMs;
             // 跟 3 个 level 阈值里最大的比 (L3 timeout 最长)
             uint32_t max_timeout = m_config->trigger_l3.timeout_ms;
-            m_state.signals[i].inTimeout = (elapsed >= max_timeout);
-            if (m_state.signals[i].inTimeout) {
+            m_state.signalStatus[i].inTimeout = (elapsed >= max_timeout);
+            if (m_state.signalStatus[i].inTimeout) {
                 ++timeout_count;
             } else {
                 ++not_timeout_count;
@@ -72,7 +72,7 @@ void LimpHomeRuntime::tick(uint64_t now_ms) {
 }
 
 // LimpHomeRuntime::onValueChanged 已经把 inTimeout=false, 但 tick 内的"上一 tick 状态"
-// 是从 m_state.signals[i].inTimeout 拿 — 这里 onValueChanged 后 inTimeout 已经是 false,
+// 是从 m_state.signalStatus[i].inTimeout 拿 — 这里 onValueChanged 后 inTimeout 已经是 false,
 // 所以 tick 主循环 was_timeout=false, 边沿条件 (was_timeout && !inTimeout) 不触发.
 // 修法: onValueChanged 不直接改 inTimeout, 让 tick 主循环自己评估.
 //

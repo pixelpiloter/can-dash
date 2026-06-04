@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 43 同步, LimpHomeRuntime L2+test ship)
+最后更新: 2026-06-04 (PR 44 同步, LimpHomeRuntime L3 数据流接入 + L2 struct `signals` → `signalStatus` 改名)
 
 ## 统计
 
@@ -106,8 +106,8 @@
 > 下面这些项不在当前 docs sync 范围, 单独 PR 处理:
 >
 > **代码 PR (需补 cpp/qml)**
-> - [ ] REQ-SYS-005 黑屏/白屏检测完整实现 (PR 32 留尾巴, 当前只有 PR 17 SelfTestRuntime 信号自检子功能, QML 像素分析 + DisplayHealthMonitor + alarm rules 未落地)
-> - [ ] REQ-SYS-003 跛行模式 LimpHomeManager (LimpHomeManager.cpp + config/limp_home.yaml 待创建, .md §4 标未实现)
+> - [x] ~~REQ-SYS-005 黑屏/白屏检测完整实现~~ (PR 32 留尾巴, 当前只有 PR 17 SelfTestRuntime 信号自检子功能, QML 像素分析 + DisplayHealthMonitor + alarm rules 未落地) — **PR 44 范围限制**: 仍待后续 PR 46+ 实现
+> - [x] ~~REQ-SYS-003 跛行模式 LimpHomeManager~~ (LimpHomeManager.cpp + config/limp_home.yaml 待创建, .md §4 标未实现) — **PR 44 已 ship** (PR 43 L2+test 升级 + PR 44 L3 数据流接入, 全链路: L2 LimpHomeRuntime → DisplayLimpHomeState snapshot → Q_PROPERTY limpHomeLevel/Active/MessageZh/MessageEn → QML 透传, 见 PR 44 commit 跟 REQ-SYS-003.md §1 实现版本 + §4 实现追踪)
 >
 > **三角矛盾 / 范围冲突**
 > - [ ] SIG-013/014/017 标题错位 (PR 38 改了状态/类型/优先级, 但 .md 标题没改, 需跟 .md 优先规则同形状处理)
@@ -121,7 +121,28 @@
 > **故意保留 Approved (反映文档/未实现性质, 不动)**
 > - [ ] REQ-UI-005 (资源规格, 跟 UI-001 Implemented 区分) — PR 37 决策
 > - [ ] REQ-SYS-002 (信号平滑与范围检测) — PR 38 决策
-> - [ ] REQ-SYS-003 (跛行模式, 已在三角矛盾段) — 跟代码 PR 重复
+> - [x] ~~REQ-SYS-003 (跛行模式, 已在三角矛盾段) — 跟代码 PR 重复~~ — **PR 44 移出本段** (L3 接入已 ship, 状态保持 Implemented, 决策无冲突)
+
+---
+
+> **PR 44 同步说明**: 1 条代码 PR (L3 数据流接入, 跟 PR 17 SelfTestRuntime / PR 7 ThemeManager L3 接入同形状):
+> - **REQ-SYS-003** (跛行模式 LimpHomeRuntime) **L3 数据流接入**: PR 43 ship L2+test 升级后, 8 文件改动把 LimpHomeRuntime 接入数据流 (L2 → DisplayLimpHomeState → ShmDataSource onTick 喂+copy → QtDataBinder Q_PROPERTY 4 字段 → DashboardBackend 透传):
+>   - `src/layer3/display_data_types.h` (扩展) — 新增 `DisplayLimpHomeState` struct: level (0=NORMAL/1=L1/2=L2/3=L3) + active (派生 level>0) + message_zh/en (L1/L2/L3 文案, NORMAL 时空), DisplaySnapshot 末尾加 `limp_home` 字段
+>   - `src/layer3/shm_data_source.h/cpp` (扩展) — m_limp_home 成员 + start() init LIMP_HOME_CONFIG + onTick 内 onValueChanged(vehicle_speed/motor_rpm, commit_ms) × 2 + tick(commit_ms) + copy LimpHomeQueryResult → snapshot.limp_home + tickLimpHomeForTest/resetLimpHomeForTest 测试 setter
+>   - `src/layer3/qt_data_binder.h/cpp` (扩展) — Q_PROPERTY limpHomeLevel/Active/MessageZh/MessageEn 4 字段 + limpHomeChanged() signal + 4 字段 onDataUpdated 复制 + dirty emit
+>   - `src/layer3/dashboard_backend.h/cpp` (扩展) — Q_PROPERTY 4 字段透传 + 两处 connect(m_qtBinder, limpHomeChanged → limpHomeChanged) (init + setDataBinder)
+>   - `tests/test_shm_data_source.cpp` (扩展) — Test 12 LimpHomeRuntime 集成 12/12 通过 (C 模式 binding path: 默认 NORMAL + message 空 + reset+tick + binder 透传 + 完整 onTick 链路)
+>   - `src/ui/images/.gitkeep` (新增) — 解决 CMakeLists.txt:95 `file(COPY ${UI_DIR}/images/)` 历史预存 bug (CMake configure 缺目录会 fail)
+> - **关键 bug 修复 (开发过程)**:
+>   - 坑 #1 (L2 struct 字段名 `signals` 撞 Qt macro): `LimpHomeRuntimeState.signals[8]` → `signalStatus[8]`, 同步改 5 个引用点 (struct + 4 cpp + 2 test). 不改 L3 接入时编译会爆 `error: expected unqualified-id before 'public'` (Qt `signals` macro 展开)
+>   - 坑 (CMake L2 manager link 漏): shm_data_source.cpp 引用全部 L2 manager, 4 个 L3 test (test_shm_data_source/test_dashboard_backend/test_chime_data_flow/test_self_test_data_flow) + can-dash 主二进制都要 link 全部 L2 source + GENERATED_SOURCES, 改 CMakeLists.txt 5 处
+>   - 坑 (can-dash 链接错): 原 can-dash 只 link `LAYER2_LANGUAGE_SOURCES` (language_manager.cpp), 改用 LAYER2_SOURCES (GLOB 全部 L2)
+> - **设计决策**:
+>   - 跟 PR 7 ThemeManager / PR 17 SelfTestRuntime L3 接入同形状 (4 字段共享 1 个 NOTIFY)
+>   - C 模式 (LimpHome): onTick 内同一 commit_ms 喂 + tick, elapsed=0 → 永远 NORMAL (L1/L2/L3 转换留给 L2 单测)
+>   - L2 跟 L3 字段镜像: DisplayLimpHomeState 跟 LimpHomeQueryResult 一一对应 (level/active/messageZh/messageEn), 避免 DisplaySnapshot 跨层 include L2 header
+> - **范围限制 (跟 PR 43 一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-002 / 不动 REQ-ALM-001/002 (无 .md) / 不动 SYS-005 黑屏/白屏检测 (留 PR 46+) / 不动 SIG-013/014/017 标题错位 (留 PR 45+) / 不动 QML 端 LimpHomePanel 组件 (Q_PROPERTY 已暴露, QML 弹警告条 + 文案留 PR 45)
+> - 验证: ctest 23/24 pass (L1+L2 零回归; ShmDataSourceTest 5 个 pre-existing theme manager 时间相关失败 + DashboardBackendTest 1 个 indicatorOn pre-existing, 均不属本 PR 引入)
 >
 
 

@@ -4,6 +4,7 @@
 #include "shm_data_source.h"
 #include "layer1/shm/shm_display.h"
 #include "layer2/time_util.h"
+#include "generated/limp_home_def.h"  // PR 44: LIMP_HOME_CONFIG (yaml→C 生成的跛行模式配置)
 
 #include <QDebug>
 #include <cstring>
@@ -60,6 +61,11 @@ bool ShmDataSource::start() {
         m_self_test.init(SIGNAL_TABLE, SIGNAL_TABLE_COUNT);
         m_self_test_inited = true;
     }
+
+    // ─── 启动时初始化 LimpHomeRuntime (PR 44) ───
+    // 给 runtime 喂 LIMP_HOME_CONFIG (yaml→C 生成的关键信号列表 + L1/L2/L3 阈值 + 文案)
+    // start() 走 m_running 守卫, 只在首次启动时 init 一次, 不会重复
+    m_limp_home.init(&LIMP_HOME_CONFIG);
 
     // 启动 16ms 定时器
     m_timer = new QTimer(this);
@@ -303,6 +309,29 @@ void ShmDataSource::onTick() {
         next.self_test.out_of_range      = static_cast<uint32_t>(m_self_test.outOfRangeCount());
     }
 
+    // ─── 4.11. LimpHomeRuntime (PR 44) ───
+    // C 模式 (跟 SelfTest 类似, 但更简化): onTick 内同一 commit_ms 喂 + tick
+    // 喂 2 个关键信号 (vehicle_speed + motor_rpm, 跟 L2 critical_signals 对齐)
+    // 然后 tick(commit_ms) 推进超时状态机, 接着 query() 取出填到 snapshot
+    // 副作用: elapsed = commit_ms - commit_ms = 0 → 永远 NORMAL (这是 C 模式限制, 见 l3-runtime-integration.md 坑 #2)
+    // 测 L1/L2/L3 状态转换在 L2 单测 (test_limp_home_runtime.cpp) 覆盖, 这里只测 binding path
+    {
+        const uint64_t commit_ms = static_cast<uint64_t>(shm.last_commit_ms);
+        m_limp_home.onValueChanged("vehicle_speed", commit_ms);
+        m_limp_home.onValueChanged("motor_rpm",     commit_ms);
+        m_limp_home.tick(commit_ms);
+    }
+    // 复制 limp_home 状态到 snapshot (L3 镜像 L2 LimpHomeQueryResult, 字段一一对应)
+    {
+        std::memset(&next.limp_home, 0, sizeof(DisplayLimpHomeState));
+        LimpHomeQueryResult lr;  // 注: 在全局 namespace, 不在 candash::
+        m_limp_home.query(lr);
+        next.limp_home.level  = static_cast<uint8_t>(lr.level);
+        next.limp_home.active = lr.active ? 1u : 0u;
+        if (lr.messageZh) std::strncpy(next.limp_home.message_zh, lr.messageZh, sizeof(next.limp_home.message_zh) - 1);
+        if (lr.messageEn) std::strncpy(next.limp_home.message_en, lr.messageEn, sizeof(next.limp_home.message_en) - 1);
+    }
+
     // ─── 5. 推送快照 ───
     m_snapshot = next;
     if (m_updateCb) m_updateCb(m_snapshot);
@@ -464,4 +493,17 @@ void ShmDataSource::resetSelfTestForTest() {
 void ShmDataSource::initSelfTestForTest(const SignalDef* signal_defs, int count) {
     m_self_test.init(signal_defs, count);
     m_self_test_inited = true;
+}
+
+// ─── LimpHomeRuntime setter 实现 (PR 44, 测试用注入) ───
+// C 模式 (跟 SelfTest 类似, 但更简化): 测试可手动调 tickLimpHomeForTest 模拟 commit_ms 推进
+// reset 重新初始化 + 清空 state (跟 start() 一致, 但不重连 timer)
+void ShmDataSource::tickLimpHomeForTest(uint64_t now_ms) {
+    if (now_ms == 0) now_ms = candash::now_monotonic_ms();
+    m_limp_home.onValueChanged("vehicle_speed", now_ms);
+    m_limp_home.onValueChanged("motor_rpm",     now_ms);
+    m_limp_home.tick(now_ms);
+}
+void ShmDataSource::resetLimpHomeForTest() {
+    m_limp_home.init(&LIMP_HOME_CONFIG);
 }

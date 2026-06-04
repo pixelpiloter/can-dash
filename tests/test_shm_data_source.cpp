@@ -593,6 +593,72 @@ int main(int argc, char** argv) {
         shm_display_close();
     }
 
+    // ─── Test 12: LimpHomeRuntime 集成 (PR 44) ───
+    // 验证 ShmDataSource m_limp_home 状态 → DisplaySnapshot.limp_home 4 字段全链路
+    // C 模式 (LimpHome): onTick 内同一 commit_ms 喂 + tick, elapsed=0 → 永远 NORMAL
+    // 测不了 L1/L2/L3 状态转换 (留给 L2 单测 test_limp_home_runtime.cpp),
+    // 这里只测 binding path: snapshot.limp_home 字段复制 + binder 透传 + reset/tick
+    printf("\n[12] LimpHomeRuntime 集成:\n");
+    {
+        shm_display_close();
+        ShmDataSource src;
+        MockDataBinder binder;
+        src.setUpdateCallback([&](const DisplaySnapshot& s) { binder.onDataUpdated(s); });
+        src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
+        src.start();
+
+        // 12.1 默认 NORMAL 路径: start + tick → snapshot.limp_home.level = 0
+        // 启动时 m_limp_home.init(&LIMP_HOME_CONFIG), onTick 内 onValueChanged(key, commit_ms) + tick(commit_ms)
+        // elapsed = commit_ms - commit_ms = 0 → 所有信号 inTimeout=false → level=NORMAL
+        writeShmFrame(1, 50.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        auto s = binder.lastSnapshot();
+        TEST_ASSERT(s.limp_home.level  == 0u, "默认: level=NORMAL (C 模式 elapsed=0)");
+        TEST_ASSERT(s.limp_home.active == 0u, "默认: active=false (level=0 派生)");
+
+        // 12.2 NORMAL 时 message_zh/en 字段为空 (L2 query 不返回 msg 指针)
+        TEST_ASSERT(s.limp_home.message_zh[0] == '\0', "NORMAL: message_zh 为空");
+        TEST_ASSERT(s.limp_home.message_en[0] == '\0', "NORMAL: message_en 为空");
+
+        // 12.3 reset + tick → 回到 NORMAL (init 把 signalStatus 标 inTimeout=true,
+        //     但 onTick 立刻 onValueChanged(commit_ms) 喂后, tick 时 elapsed=0)
+        src.resetLimpHomeForTest();
+        writeShmFrame(2, 50.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.limp_home.level  == 0u, "reset+tick: level=NORMAL");
+        TEST_ASSERT(s.limp_home.active == 0u, "reset+tick: active=false");
+
+        // 12.4 binder 透传 — 手动推 DisplaySnapshot (L3 + msg), 不经 onTick
+        //     验证 MockDataBinder.lastSnapshot() 拿到 limp_home 全字段 (跟 selfTest Test 9 同模式)
+        DisplaySnapshot snap;
+        std::memset(&snap, 0, sizeof(DisplaySnapshot));
+        snap.limp_home.level  = 3u;  // L3
+        snap.limp_home.active = 1u;
+        std::strncpy(snap.limp_home.message_zh, "CAN 总线异常, 显示已禁用", sizeof(snap.limp_home.message_zh) - 1);
+        std::strncpy(snap.limp_home.message_en, "CAN bus abnormal, display disabled", sizeof(snap.limp_home.message_en) - 1);
+        binder.onDataUpdated(snap);
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.limp_home.level  == 3u, "binder 透传: level=L3");
+        TEST_ASSERT(s.limp_home.active == 1u, "binder 透传: active=true");
+        TEST_ASSERT(std::strncmp(s.limp_home.message_zh, "CAN 总线异常", 12) == 0, "binder 透传: message_zh 含 'CAN 总线异常'");
+        TEST_ASSERT(std::strncmp(s.limp_home.message_en, "CAN bus abnormal", 16) == 0, "binder 透传: message_en 含 'CAN bus abnormal'");
+
+        // 12.5 完整 onTick 链路: reset + writeShmFrame + tick → snapshot 回到 NORMAL
+        src.resetLimpHomeForTest();
+        writeShmFrame(3, 50.0f, 0, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        src.tickForTest();
+        s = binder.lastSnapshot();
+        TEST_ASSERT(s.limp_home.level  == 0u, "完整 onTick 链路: level=NORMAL");
+        TEST_ASSERT(s.limp_home.active == 0u, "完整 onTick 链路: active=false");
+
+        src.stop();
+        shm_display_close();
+    }
+
     printf("\n=== 总计: %d/%d 通过 ===\n", g_test_passed, g_test_count);
     return (g_test_passed == g_test_count) ? 0 : 1;
 }

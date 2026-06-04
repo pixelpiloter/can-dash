@@ -173,6 +173,19 @@ void QtDataBinder::onDataUpdated(const DisplaySnapshot& s) {
     if (s.self_test.warn_stuck        != m_selfTestWarnStuck)        { m_selfTestWarnStuck        = s.self_test.warn_stuck;        selfTestDirty = true; }
     if (s.self_test.out_of_range      != m_selfTestOutOfRange)      { m_selfTestOutOfRange      = s.self_test.out_of_range;      selfTestDirty = true; }
     if (selfTestDirty) emit selfTestChanged();
+
+    // ─── 14. 跛行模式 (PR 44) — limp_home state, 4 字段共享 limpHomeChanged() ───
+    // level 是主状态 (0=NORMAL 隐藏 / 1=L1黄 / 2=L2橙 / 3=L3红), QML 端按 active 决定显示
+    // msg_zh/en 是 L1/L2/L3 文案, NORMAL 时为空 (QML 端按 active 决定是否显示文案)
+    // 跟 selfTestDirty 同模式: 任意字段变化都 emit
+    bool limpHomeDirty = false;
+    if (s.limp_home.level  != m_limpHomeLevel)  { m_limpHomeLevel  = s.limp_home.level;  limpHomeDirty = true; }
+    if (s.limp_home.active != m_limpHomeActive) { m_limpHomeActive = (s.limp_home.active != 0); limpHomeDirty = true; }
+    QString newLimpMsgZh = QString::fromUtf8(s.limp_home.message_zh);
+    QString newLimpMsgEn = QString::fromUtf8(s.limp_home.message_en);
+    if (newLimpMsgZh != m_limpHomeMessageZh) { m_limpHomeMessageZh = newLimpMsgZh; limpHomeDirty = true; }
+    if (newLimpMsgEn != m_limpHomeMessageEn) { m_limpHomeMessageEn = newLimpMsgEn; limpHomeDirty = true; }
+    if (limpHomeDirty) emit limpHomeChanged();
 }
 
 void QtDataBinder::onHealthChanged(HealthStatus new_health) {

@@ -104,6 +104,15 @@ class QtDataBinder : public QObject, public IDataBinder {
     Q_PROPERTY(int  selfTestWarnStuck READ selfTestWarnStuck NOTIFY selfTestChanged)
     Q_PROPERTY(int  selfTestOutOfRange READ selfTestOutOfRange NOTIFY selfTestChanged)
 
+    // ─── LimpHomeRuntime (PR 44) — 共享 limpHomeChanged(), 4 字段同发同更 ───
+    // QML 端按 level 切跛行模式警告条 (0=NORMAL 隐藏 / 1=L1黄 / 2=L2橙 / 3=L3红) + 弹 L1/L2/L3 文案
+    // 跟 selfTestChanged 同模式: 1 个 NOTIFY 推 4 字段 (level + active + msg_zh + msg_en)
+    // QML 端 LimpHomePanel.qml 留 PR 45, 这里只暴露 Q_PROPERTY
+    Q_PROPERTY(int     limpHomeLevel    READ limpHomeLevel    NOTIFY limpHomeChanged)
+    Q_PROPERTY(bool    limpHomeActive   READ limpHomeActive   NOTIFY limpHomeChanged)
+    Q_PROPERTY(QString limpHomeMessageZh READ limpHomeMessageZh NOTIFY limpHomeChanged)
+    Q_PROPERTY(QString limpHomeMessageEn READ limpHomeMessageEn NOTIFY limpHomeChanged)
+
 public:
     explicit QtDataBinder(QObject* parent = nullptr);
     ~QtDataBinder() override;
@@ -186,6 +195,12 @@ public:
     int  selfTestWarnStuck() const         { return static_cast<int>(m_selfTestWarnStuck); }
     int  selfTestOutOfRange() const        { return static_cast<int>(m_selfTestOutOfRange); }
 
+    // 跛行模式 (PR 44) — 透传到 ShmDataSource.m_limp_home
+    int     limpHomeLevel() const    { return static_cast<int>(m_limpHomeLevel); }
+    bool    limpHomeActive() const   { return m_limpHomeActive; }
+    QString limpHomeMessageZh() const { return m_limpHomeMessageZh; }
+    QString limpHomeMessageEn() const { return m_limpHomeMessageEn; }
+
     // QML 通用接口
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
@@ -210,6 +225,7 @@ signals:
     void viewChanged();      // PR 13: viewMode/gear/charge 任一变化
     void chimeChanged();     // PR 14: chimeActive/severity/freq/duration/repeat/volume 任一变化
     void selfTestChanged();  // PR 17: status + 5 计数任一变化
+    void limpHomeChanged();  // PR 44: level + active + msg_zh + msg_en 任一变化
 
 private:
     QVariantMap buildDisplayData(const DisplayData& d) const;
@@ -302,6 +318,14 @@ private:
     uint32_t m_selfTestCriticalStuck    = 0;
     uint32_t m_selfTestWarnStuck        = 0;
     uint32_t m_selfTestOutOfRange       = 0;
+
+    // 跛行模式 (PR 44) — 由 ShmDataSource 推过来, 缓存到这些字段
+    // level 默认 0=NORMAL (未触发, 启动时), 4 字段共享 limpHomeChanged() 推送
+    // active 是派生: level > 0 (QML 端按 active 决定显示/隐藏警告条)
+    uint8_t  m_limpHomeLevel    = 0;   // 0=NORMAL, 1=L1, 2=L2, 3=L3
+    bool     m_limpHomeActive   = false;
+    QString  m_limpHomeMessageZh;
+    QString  m_limpHomeMessageEn;
 
     // 缓存：上次推送的时间戳（用于算 dataAgeMs）
     uint64_t m_lastTimestampMs = 0;
