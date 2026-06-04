@@ -1,13 +1,14 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 6 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 7 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
 //   4. shm read + 28 字段 copy → DisplaySnapshot — ShmDataSource::convertSnapshot 等价
 //   5. 完整 16ms tick (write + read + convert + 22 alarm keys) — 端到端
 //   6. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
+//   7. TripComputer tick + tickEnergy (派生指标积分) — PR 1-4 L2 derived metrics 成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -37,6 +38,7 @@
 #include "layer2/alarm_runtime.h"
 #include "layer2/limp_home_runtime.h"
 #include "layer2/time_util.h"
+#include "layer2/trip_computer.h"
 #include "generated/alarm_rule_def.h"
 #include "generated/limp_home_def.h"
 
@@ -344,6 +346,32 @@ void bench_limp_home_eval(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── TripComputer tick + tickEnergy (PR 1-4 L2 derived metrics) ──
+// 模拟 16ms tick 周期内: ShmDataSource 推 speed_kmh + volt/curr/soc/ev_range
+// 测量 TripComputer 派生指标积分成本 (梯形 distance 积分 + 能耗积分 + 续航可信度)
+// 跟 ShmDataSource::onTick 调用顺序一致: tick(now, speed) + tickEnergy(now, v, i, soc, range)
+void bench_trip_computer_tick(std::vector<int64_t>& samples) {
+    TripComputer trip;
+    // 时间起点: 假装现在 t=1000ms (跟 limp_home_eval 一致, 跟 16ms QTimer 节奏对齐)
+    uint64_t now = 1000;
+    // 典型"正常驾驶"输入 (跟 shm_to_snapshot bench 同 shape)
+    const float kSpeedKmh = 65.0f;
+    const float kBatVolt = 360.0f;
+    const float kBatCurr = 50.0f;
+    const float kBatSoc = 75.0f;
+    const float kEvRange = 250.0f;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 跟 ShmDataSource::onTick 调用顺序一致: 先基础 tick 再 tickEnergy
+        trip.tick(now, kSpeedKmh);
+        trip.tickEnergy(now, kBatVolt, kBatCurr, kBatSoc, kEvRange);
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -375,7 +403,7 @@ int main() {
         return 1;
     }
 
-    // 跑 4 个基准
+    // 跑 7 个基准
     printf("[1] shm write + commit (memcpy + checksum + msync + frame_seq)\n");
     BenchStats s1 = run_bench("shm_write_commit", bench_shm_write_commit);
 
@@ -394,11 +422,15 @@ int main() {
     printf("\n[6] LimpHomeRuntime tick (critical signals onValueChanged + tick + query) (PR 43)\n");
     BenchStats s6 = run_bench("limp_home_eval", bench_limp_home_eval);
 
+    printf("\n[7] TripComputer tick + tickEnergy (派生指标积分: 距离/均速/时长/能耗/续航可信度) (PR 1-4)\n");
+    BenchStats s7 = run_bench("trip_computer_tick", bench_trip_computer_tick);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
-    // 单 dash 端 tick = read + convert + alarm eval
-    int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns;
+    // 单 dash 端 tick = read + convert + alarm eval + trip_computer
+    int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns + s7.median_ns;
     int64_t full_tick_ns = s5.median_ns;
     int64_t limp_tick_ns = s6.median_ns;
+    int64_t trip_tick_ns = s7.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -408,6 +440,8 @@ int main() {
            s4.median_ns, s4.median_ns / 16000000.0 * 100.0);
     printf("  alarm eval (22 keys)    : %7" PRId64 " ns (%.2f%%)\n",
            s3.median_ns, s3.median_ns / 16000000.0 * 100.0);
+    printf("  trip_computer tick      : %7" PRId64 " ns (%.4f%%) (PR 1-4 派生指标)\n",
+           trip_tick_ns, trip_tick_ns / 16000000.0 * 100.0);
     printf("  ─────────────────────────────────────────\n");
     printf("  dash tick 总计           : %7" PRId64 " ns (%.2f%% of 16ms budget)\n",
            dash_tick_ns, budget_pct);
@@ -433,6 +467,8 @@ int main() {
     printf("  \"full_tick_p99_ns\":            %" PRId64 ",\n", s5.p99_ns);
     printf("  \"limp_home_eval_median_ns\":    %" PRId64 ",\n", s6.median_ns);
     printf("  \"limp_home_eval_p99_ns\":       %" PRId64 ",\n", s6.p99_ns);
+    printf("  \"trip_computer_tick_median_ns\": %" PRId64 ",\n", s7.median_ns);
+    printf("  \"trip_computer_tick_p99_ns\":    %" PRId64 ",\n", s7.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);
