@@ -195,7 +195,8 @@ add_test(NAME TripComputerTest COMMAND test_trip_computer)
 
 # ThemeManager: DAY/NIGHT/AUTO 颜色策略 — 纯 C++, 无 Qt
 add_executable(test_theme_manager tests/test_theme_manager.cpp
-    ${LAYER2_DIR}/theme_manager.cpp)
+    ${LAYER2_DIR}/theme_manager.cpp
+    ${LAYER2_DIR}/time_util.cpp)  # PR 45: setCurrentHour/reset 调 now_monotonic_ms()
 target_include_directories(test_theme_manager PRIVATE
     ${CMAKE_SOURCE_DIR}/src ${LAYER2_DIR})
 add_test(NAME ThemeManagerTest COMMAND test_theme_manager)

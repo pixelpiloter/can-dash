@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
     printf("\n[2] 健康状态变化:\n");
     {
         shm_display_close();
+        unlink(SHM_DISPLAY_PATH);  // PR 45: 删旧 shm 文件 (start() 会重新 open, 但需要先 unlink 模拟"无 producer")
         ShmDataSource src;
         MockDataBinder binder;
         src.setHealthCallback([&](HealthStatus h) { binder.onHealthChanged(h); });
@@ -254,6 +255,11 @@ int main(int argc, char** argv) {
         src.start();
 
         // 8.1 默认状态: AUTO + hour=12 → DAY, 5 色 = kDayColors
+        // PR 45: PR 16 把 start() baseline 改成 wall_clock_hour(), 默认状态跟
+        // wall clock 走, 测试要显式设 hour=12 拿回稳定默认 (不依赖运行环境).
+        // 配合 theme_manager.cpp setCurrentHour/reset 用 now_monotonic_ms()
+        // 同步 baseline, 下次 tickForTest 算 delta≈0, 保留 m_currentHour=12.
+        src.setThemeHourForTest(12);
         writeShmFrame(1, 0.0f, 0, 0);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         src.tickForTest();

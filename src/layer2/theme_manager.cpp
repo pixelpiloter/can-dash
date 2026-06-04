@@ -9,6 +9,7 @@
 // ARGB 编码: 0xAARRGGBB (与 alarm_runtime color / QML color 一致)
 
 #include "theme_manager.h"
+#include "time_util.h"  // PR 45: now_monotonic_ms() for baselineMs 同步
 #include <cstring>
 
 namespace candash {
@@ -50,6 +51,18 @@ void ThemeManager::setMode(ThemeMode mode) {
 
 void ThemeManager::setCurrentHour(uint8_t hour) {
     m_currentHour = normalizeHour(static_cast<int>(hour));
+    // PR 16 跟进 (PR 45): setCurrentHour 同步 baseline 让后续 tick() 不覆盖
+    // 之前 setCurrentHour(h) + tick(t) 的组合里, tick() 总是从 baseline 推算
+    // m_currentHour 把 h 覆盖掉, 导致测试 setHour(7) + tick(0) 拿回 baseline 的值
+    // 同步 (m_baselineHour=h, m_baselineMs=now) 后 setCurrentHour 等价于
+    // "系统现在认为在 h 时, 配 monotonic now", 下次 tick(now+δ) δ≈0 不动 hour
+    // 用 now_monotonic_ms() 而不是 0: 测试 setHour(2) 后立刻 writeShmFrame →
+    // shm.last_commit_ms≈now → tick(delta=0) 保留 m_currentHour=2.
+    // 关键: baselineMs 必须用 monotonic (不受 NTP/系统时间调整影响), 跟
+    // onTick 用 shm.last_commit_ms 同基准. 之前 baselineMs=0 导致测试不
+    // 稳定 (delta 跟 uptime_hours 走, 偶发 NIGHT/DAY 翻车).
+    m_baselineHour = m_currentHour;
+    m_baselineMs   = candash::now_monotonic_ms();
     if (m_mode == ThemeMode::AUTO) {
         evaluateAutoMode();
     }
@@ -113,7 +126,10 @@ void ThemeManager::reset() {
     m_sunsetHour = 18;
     m_currentHour = 12;
     m_baselineHour = 12;
-    m_baselineMs = 0;
+    // PR 45: reset 也用 now_monotonic_ms() 跟 setCurrentHour 对齐, 让测试
+    // resetThemeForTest() + writeShmFrame + tickForTest 链路里 baseline 算
+    // delta=0, 保留 m_currentHour=12, 不被 uptime_hours 污染
+    m_baselineMs   = candash::now_monotonic_ms();
     m_isDay = true;
 }
 
