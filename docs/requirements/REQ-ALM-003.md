@@ -22,7 +22,7 @@
 - REQ-ALM-003 自身 = `soc_critical_low` (电量严重不足报警，SOC<8%, duration 300ms)
 - REQ-SIG-002: `soc_critical_low` 关联信号定义
 - REQ-HYBRID-001: SOC < 8% 触发严重报警 (跨条目)
-- 注: 10% 阈值的 "电量低报警" (`bat_soc_low` L37) 历史上跟本条目共用 REQ-ALM-003 编号, 实际是**两条独立 alarm rule**. 本 PR 26 把 REQ-ALM-003 重新指向 8% 严重规则 (`soc_critical_low` L53), 10% 规则待 PR 27 另立 REQ-ALM-012 分离.
+- REQ-ALM-012: 10% 阈值的 "电量低报警" (`bat_soc_low` L37), 跟本条分层触发 (PR 27 拆分)
 
 ---
 
@@ -109,3 +109,4 @@
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建（从 alarm_rules.yaml 补充） | requirements-document-agent |
 | 2026-06-04 | 1.1 | 修 1.3 节"相关需求"自引用: 原本混引 `bat_soc_low` (10% 规则) 跟本 .md 描述的 8% 严重规则, 改成清晰指 `soc_critical_low`. 三角矛盾决策 (a/b/c) 选 (b) 改 INDEX 对齐本文件 (PR 26) | can-dash-jd-autopilot |
+| 2026-06-04 | 1.2 | 1.3 节去掉 PR 26 的 "待 PR 27 另立 012" 注, 改成对 REQ-ALM-012 的明确引用 (PR 27 拆分完成) | can-dash-jd-autopilot |

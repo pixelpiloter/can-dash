@@ -17,7 +17,7 @@
 
 ### 1.2 相关需求
 - REQ-ALM-003: soc_critical_low (SOC < 8%)
-- REQ-ALM-004: bat_soc_low (SOC < 10%)
+- REQ-ALM-012: bat_soc_low (SOC < 10%, PR 27 新立, 原本误引 REQ-ALM-004)
 - REQ-SIG-001: bat_volt (同属BMS)
 
 ---
@@ -90,3 +90,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 1.2 节修 bat_soc_low 引用: 原本误引 REQ-ALM-004, 改成 REQ-ALM-012 (PR 27 新立) | can-dash-jd-autopilot |

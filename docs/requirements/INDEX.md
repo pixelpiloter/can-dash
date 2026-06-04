@@ -1,26 +1,28 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 25 同步)
+最后更新: 2026-06-04 (PR 27 同步)
 
 ## 统计
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
-| ALM (报警) | 11 | 0 | 10 | 1 |
+| ALM (报警) | 12 | 0 | 11 | 1 |
 | HYBRID (混动特有) | 6 | 0 | 0 | 1 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
 | SIG (CAN信号) | 19 | 18 | 0 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
 | SYS (系统) | 5 | 4 | 0 | 0 |
-| **合计** | **58** | **39** | **10** | **3** |
+| **合计** | **59** | **39** | **11** | **3** |
 
+> **PR 27 同步说明**: 新立 REQ-ALM-012 (电量低报警 SOC<10%, `bat_soc_low` 规则 L37), 从 REQ-ALM-003 拆分. ALM 类别 11 → 12 项, 合计 58 → 59. 状态字段元数据留待 PR 28 同步 (本 PR 27 不动 .md 元数据 "状态/实现版本" 字段, 避免范围扩大).
+>
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
 
 ## 需求列表
 
-### ALM (报警) — 11项
+### ALM (报警) — 12项
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
@@ -35,6 +37,7 @@
 | REQ-ALM-009 | 充电模式指示灯控制 (Charge Mode Active) | Functional | Medium | Implemented | alarm_rules.yaml:charge_mode_active (L136) |
 | REQ-ALM-010 | 发动机故障报警 | Safety | High | Implemented | alarm_rules.yaml:engine_fault_alarm (L147) |
 | REQ-ALM-011 | 充电异常报警 | Functional | Medium | Implemented | alarm_rules.yaml:charge_fault_alarm (L163) |
+| REQ-ALM-012 | 电量低报警 (SOC<10%) | Safety | Medium | Implemented | alarm_rules.yaml:bat_soc_low (L37) |
 
 ### HYBRID (混动特有) — 6项
 

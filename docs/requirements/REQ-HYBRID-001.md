@@ -61,8 +61,8 @@
 #### 2.2.2 显示逻辑
 - SOC ≥ 20%: 正常显示（白色/绿色）
 - SOC 10%~19%: 显示黄色低电量警告
-- SOC < 10%: 显示红色极低电量报警（已有 `bat_soc_low` 规则，duration 1000ms）
-- SOC < 8%: 触发严重报警 `soc_critical_low`（已有规则）
+- SOC < 10%: 显示红色极低电量报警（见 REQ-ALM-012 `bat_soc_low` 规则，duration 1000ms）
+- SOC < 8%: 触发严重报警 `soc_critical_low`（见 REQ-ALM-003）
 
 #### 2.2.3 比亚迪秦Plus DM-i 参考
 - SOC 可在仪表盘上以百分比+图形方式显示
@@ -344,3 +344,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建：基于竞品调研（比亚迪秦Plus DM-i/岚图梦想家/丰田混动）和 GB 4094-2016 / GB 18384-2020 / ISO 26262 标准 | requirements-document-agent |
+| 2026-06-04 | 1.1 | 2.2.2 节 SOC 阈值报警加 REQ 编号引用: bat_soc_low → REQ-ALM-012, soc_critical_low → REQ-ALM-003 (PR 27 同步) | can-dash-jd-autopilot |
