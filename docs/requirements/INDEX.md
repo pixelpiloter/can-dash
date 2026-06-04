@@ -76,6 +76,17 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 41 同步说明**: 5 条 SIG 标题错位修齐 (.md 优先规则, 跟 SIG-002 修法 + PR 30 修 HYBRID/IND + PR 35 修 SIG-002 + PR 37 三角矛盾同形状, 0 cpp 改动, 纯 docs sync):
+> - **REQ-SIG-011**: INDEX "驾驶员安全带状态信号" → .md "副驾占用信号 (passenger_occupied)" (跟 .md 一致, 类型 Safety → Functional, 实现版本改 can_ids.yaml:L90 + shm_data_source:L322)
+> - **REQ-SIG-012**: INDEX "副驾驶员安全带状态信号" → .md "主驾安全带状态信号 (driver_buckled)" (跟 .md 一致, 主副颠倒, 实现版本改 can_ids.yaml:L101 + shm_data_source:L323)
+> - **REQ-SIG-015**: INDEX "充电指示灯信号" → .md "发动机转速信号 (engine_rpm)" (跟 .md 一致, 实现版本改 can_ids.yaml:ENGINE (L130) + shm_data_source:L325)
+> - **REQ-SIG-016**: INDEX "充电功率信号" → .md "充电状态信号 (charge_status)" (跟 .md 一致, 充电功率/状态区分, 实现版本改 can_ids.yaml:L153 + shm_data_source:L328)
+> - **REQ-SIG-019**: INDEX "电池电流信号 (bat_curr)" → .md "发动机故障标志信号 (engine_fault)" (跟 .md 一致, 类型 Functional → Safety, 实现版本改 can_ids.yaml:ENGINE.engine_fault (L142) + shm_data_source:L326)
+> - **决策依据**: 5 处 .md 都是已 Implemented 状态, impl ref 跟 .md 标题信号 ID 完全匹配 (passenger_occupied/driver_buckled/engine_rpm/charge_status/engine_fault), INDEX 标题是历史错位 — .md 是 source of truth
+> - 类别表无变化 (SIG 0/19/0 保持, 合计 2/55/2 保持) — 纯标题修齐, 不动状态
+> - **范围限制 (跟 PR 38/39/40 决策一致)**: 不动 UI-005 (资源规格 PR 37) / 不动 SYS-002/003 (PR 37/38 决策保持 Approved) / 不动 REQ-ALM-001/002 (无 .md) / 不动 SYS-005 黑屏/白屏检测 (需补代码) / 不动 SIG-013/014/017 标题错位 (PR 38 修状态但没改标题, 留 PR 42+)
+>
+
 > **PR 40 同步说明**: HYBRID 类别 1 条 docs-only 同步 (跟 PR 33 IND 6-12、PR 35 SIG 14、PR 36 IND 1-5/UI 3/SYS 1、PR 37 三角矛盾、PR 38 SIG 013/014/017、PR 39 HYBRID-002 同形状, 0 cpp 改动, 纯 docs sync):
 > - **新建 REQ-HYBRID-006.md** (历史欠账): 充电功率显示, 状态 Approved → Implemented, 实现版本填 can_ids.yaml:CHG_POWER (L167) + src/ui/EnergyFlowDiagram.qml:L255-256 (chargePower.toFixed(1) + 'kW' 文本 + 颜色阈值 充绿/放蓝)
 > - **数据通路** (跟 PR 39 HYBRID-002 同形状): ShmDataSource.cpp:L329 (out.data.charge_power = shm.charge_power) → QtDataBinder.cpp (m["charge_power"] 绑定) → DashboardMain.qml (chargePower 绑定) → EnergyFlowDiagram.qml:L255-256 渲染
@@ -181,15 +192,15 @@
 | REQ-SIG-008 | 胎压信号 (tire_pressure) | Functional | High | Implemented | can_ids.yaml:0x3A0 (L235) |
 | REQ-SIG-009 | 驾驶员座椅占用信号 | Functional | Medium | Implemented | can_ids.yaml:L79 + src/layer3/shm_data_source.cpp:L321 |
 | REQ-SIG-010 | 副驾驶员座椅占用信号 | Functional | Medium | Implemented | can_ids.yaml:L90 + src/layer3/shm_data_source.cpp:L322 |
-| REQ-SIG-011 | 驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L101 + src/layer3/shm_data_source.cpp:L323 |
-| REQ-SIG-012 | 副驾驶员安全带状态信号 | Safety | High | Implemented | can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324 |
+| REQ-SIG-011 | 副驾占用信号 (passenger_occupied) | Functional | High | Implemented | can_ids.yaml:L90 + src/layer3/shm_data_source.cpp:L322 |
+| REQ-SIG-012 | 主驾安全带状态信号 (driver_buckled) | Safety | High | Implemented | can_ids.yaml:L101 + src/layer3/shm_data_source.cpp:L323 |
 | REQ-SIG-013 | 副驾安全带状态信号 (passenger_buckled) | Safety | High | Implemented | can_ids.yaml:L112 + src/layer3/shm_data_source.cpp:L324 |
 | REQ-SIG-014 | 后排安全带状态信号 (rear_buckle) | Safety | High | Implemented | can_ids.yaml:L123 + src/layer3/shm_data_source.cpp:L325 |
-| REQ-SIG-015 | 充电指示灯信号 | Functional | Medium | Implemented | can_ids.yaml:L153 + src/layer3/shm_data_source.cpp:L328 |
-| REQ-SIG-016 | 充电功率信号 | Functional | Medium | Implemented | can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329 |
+| REQ-SIG-015 | 发动机转速信号 (engine_rpm) | Functional | Medium | Implemented | can_ids.yaml:ENGINE (L130) + src/layer3/shm_data_source.cpp:L325 (engine_rpm) |
+| REQ-SIG-016 | 充电状态信号 (charge_status) | Functional | Medium | Implemented | can_ids.yaml:L153 + src/layer3/shm_data_source.cpp:L328 |
 | REQ-SIG-017 | 充电功率信号 (charge_power) | Functional | Medium | Implemented | can_ids.yaml:L171 + src/layer3/shm_data_source.cpp:L329 |
 | REQ-SIG-018 | 能量模式信号 | Functional | Medium | Implemented | can_ids.yaml:L183 + src/layer3/shm_data_source.cpp:L330 |
-| REQ-SIG-019 | 电池电流信号 (bat_curr) | Functional | High | Implemented | can_ids.yaml:L17 + src/layer3/shm_data_source.cpp:L314 |
+| REQ-SIG-019 | 发动机故障标志信号 (engine_fault) | Safety | High | Implemented | can_ids.yaml:ENGINE.engine_fault (L142) + (不在 shm 协议, DisplayData 保持 0, shm_data_source.cpp:L327 注释) |
 
 ### UI (界面) — 5项
 
