@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 40 同步)
+最后更新: 2026-06-04 (PR 41 同步 + 待办小节)
 
 ## 统计
 
@@ -76,6 +76,39 @@
 > **PR 25 同步说明**: 接 PR 24 留下的 4 条 ALM (006/008/009/011), 状态 Approved → Implemented 并填实现版本. 这 4 条都是 IND-mode 指示灯联动 (energy_mode==N 联动 N 个 widget 亮/灭), 跟 alarm_runtime 现有 single-key-condition 模型天然兼容, alarm_rules.yaml 早就有对应规则 (ev_mode_active L85 / engine_boost_active L117 / charge_mode_active L136 / charge_fault_alarm L163).
 
 ---
+> **PR 42 同步说明**: 顶部加 '## 待办' 小节, 汇总所有 PR 范围限制里的未完成项 (1 处 INDEX 文档结构改动, 0 cpp 改动):
+> - 从 PR 25/27/28/30/32/33/34/35/36/37/38/39/40/41 范围限制段提取 3 类未完成项:
+>   - **代码 PR 2 项**: REQ-SYS-005 黑屏/白屏检测完整实现 / REQ-SYS-003 跛行模式 LimpHomeManager
+>   - **三角矛盾 2 项**: SIG-013/014/017 标题错位 (PR 38 漏) / REQ-ALM-008 bat_temp_high 三角矛盾 (pitfall #30)
+>   - **未补 .md 2 项**: REQ-ALM-001/002 (历史欠账, 决定不补但留个审计痕迹)
+>   - **故意保留 Approved 3 项**: UI-005 / SYS-002 / SYS-003 (反映文档/未实现性质, 不动)
+> - 决策: 范围限制段保持原样 (历史审计), 待办小节做汇总 — 不删任何 PR 块, 只加新结构
+> - **范围限制 (跟 PR 38-41 一致)**: 不动任何 PR 同步说明块 / 不动统计表 / 不动 59 条需求表 / 不动待办小节里的 9 项
+>
+
+> **## 待办 (所有 PR 范围限制汇总, 2026-06-04)**
+> 下面这些项不在当前 docs sync 范围, 单独 PR 处理:
+>
+> **代码 PR (需补 cpp/qml)**
+> - [ ] REQ-SYS-005 黑屏/白屏检测完整实现 (PR 32 留尾巴, 当前只有 PR 17 SelfTestRuntime 信号自检子功能, QML 像素分析 + DisplayHealthMonitor + alarm rules 未落地)
+> - [ ] REQ-SYS-003 跛行模式 LimpHomeManager (LimpHomeManager.cpp + config/limp_home.yaml 待创建, .md §4 标未实现)
+>
+> **三角矛盾 / 范围冲突**
+> - [ ] SIG-013/014/017 标题错位 (PR 38 改了状态/类型/优先级, 但 .md 标题没改, 需跟 .md 优先规则同形状处理)
+> - [ ] REQ-ALM-008 bat_temp_high 三角矛盾 (发动机驱动 vs 电池高温 vs bat_temp_high, pitfall #30)
+>
+> **未补 .md (历史欠账)**
+> - [ ] REQ-ALM-001 (电池过压报警) 无 .md — PR 28/30/33 决策不补
+> - [ ] REQ-ALM-002 (电池欠压报警) 无 .md — PR 28/30/33 决策不补
+> - [ ] REQ-IND 1-5 之外的 (无 .md, 如果有的话)
+>
+> **故意保留 Approved (反映文档/未实现性质, 不动)**
+> - [ ] REQ-UI-005 (资源规格, 跟 UI-001 Implemented 区分) — PR 37 决策
+> - [ ] REQ-SYS-002 (信号平滑与范围检测) — PR 38 决策
+> - [ ] REQ-SYS-003 (跛行模式, 已在三角矛盾段) — 跟代码 PR 重复
+>
+
+
 > **PR 41 同步说明**: 5 条 SIG 标题错位修齐 (.md 优先规则, 跟 SIG-002 修法 + PR 30 修 HYBRID/IND + PR 35 修 SIG-002 + PR 37 三角矛盾同形状, 0 cpp 改动, 纯 docs sync):
 > - **REQ-SIG-011**: INDEX "驾驶员安全带状态信号" → .md "副驾占用信号 (passenger_occupied)" (跟 .md 一致, 类型 Safety → Functional, 实现版本改 can_ids.yaml:L90 + shm_data_source:L322)
 > - **REQ-SIG-012**: INDEX "副驾驶员安全带状态信号" → .md "主驾安全带状态信号 (driver_buckled)" (跟 .md 一致, 主副颠倒, 实现版本改 can_ids.yaml:L101 + shm_data_source:L323)
