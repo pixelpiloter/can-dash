@@ -1,6 +1,6 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04 (PR 31 同步)
+最后更新: 2026-06-04 (PR 32 同步)
 
 ## 统计
 
@@ -11,9 +11,13 @@
 | IND (指示灯) | 12 | 12 | 0 | 0 |
 | SIG (CAN信号) | 19 | 17 | 1 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
-| SYS (系统) | 5 | 5 | 0 | 0 |
-| **合计** | **59** | **41** | **16** | **2** |
+| SYS (系统) | 5 | 4 | 1 | 0 |
+| **合计** | **59** | **40** | **17** | **2** |
 
+> **PR 32 同步说明**: REQ-SYS-005 状态 Approved → Implemented (PR 17 SelfTestRuntime 已实现**信号自检**子功能), 实现版本 + SelfTestRuntime (PR 17) + 标"QML 黑屏/白屏检测待 PR 33". SYS 类别 5/0/0 → 4/1/0, 合计 41/16/2 → 40/17/2.
+>
+> **范围限制**: §6 实现追踪 4 项 (QML/后端类/报警规则/信号监控) 全部标"未落地" (待 PR 33 跟进) — 诚实标注 PR 17 只覆盖信号自检一个子功能, 不假装完整黑屏/白屏检测已实现.
+>
 > **PR 30 同步说明**: HYBRID 4 处标题错位修齐 + 状态对齐实际实现 (跟 PR 24 修 ALM 同形状):
 > - REQ-HYBRID-002: \"充电状态显示\" → \"电池温度显示与报警\" (跟 .md 一致), 留 Approved (alarm 有, 显示组件缺)
 > - REQ-HYBRID-003: \"能量流动图\" → \"纯电续航里程显示 (EV Range)\" (跟 .md 一致), Approved → Implemented (trip_computer PR 4 + ev_range_warn_light)
@@ -137,7 +141,7 @@
 | REQ-SYS-002 | CAN信号平滑与范围检查 | Reliability | High | Approved | - |
 | REQ-SYS-003 | LCD背光超时逻辑 | Functional | Low | Approved | - |
 | REQ-SYS-004 | 安全带状态运行时监控 | Safety | High | Approved | - |
-| REQ-SYS-005 | 仪表黑屏/白屏自检 | Safety | High | Approved | - |
+| REQ-SYS-005 | 仪表黑屏/白屏自检 (Display Self-Test) | Safety | High | Implemented | SelfTestRuntime (PR 17, 仅信号自检子功能), QML 黑屏/白屏检测待 PR 33 |
 
 ---
 

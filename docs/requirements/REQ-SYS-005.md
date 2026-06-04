@@ -1,12 +1,12 @@
 #REQ-SYS-005|仪表黑屏/白屏自检 (Display Self-Test)
 =================================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
-**来源**:   用户需求
+**来源**:   用户需求 / SelfTestRuntime (PR 17)
 **创建日期**: 2026-06-01
-**实现版本**: -
+**实现版本**: SelfTestRuntime (PR 17, 信号自检子功能) — 报警规则 alarm_display_black/white 跟 QML 黑屏白屏检测**未落地** (待 PR 33)
 
 ---
 
@@ -149,12 +149,13 @@ avg_brightness > 250 AND color_variance < 10
 
 | 字段 | 值 |
 |------|-----|
-| QML组件 | `src/ui/DisplaySelfTest.qml` |
-| 后端类 | `src/layer3/DisplayHealthMonitor.cpp` |
-| 报警规则 | `config/alarm_rules.yaml` (新增 alarm_display_black, alarm_display_white) |
-| 信号监控 | `config/can_signal_status.yaml` (新增 display.health.*) |
-| 验证日期 | - |
-| 验证结果 | - |
+| QML组件 | `src/ui/DisplaySelfTest.qml` — **未落地** (PR 33 跟进) |
+| 后端类 | `src/layer3/DisplayHealthMonitor.cpp` — **未落地** (PR 33 跟进, 实际是 L2 self_test_runtime.h, 不是 L3 名字) |
+| L2 runtime | `src/layer2/self_test_runtime.cpp` (PR 17, **部分实现**: 信号自检 — 启动 ping/卡死 timeout/越界检测, 输出 self_test_status 枚举 OK/WARN/FAIL/NOT_READY) |
+| 报警规则 | `config/alarm_rules.yaml` (alarm_display_black, alarm_display_white) — **未落地** (PR 33 跟进) |
+| 信号监控 | `config/can_signal_status.yaml` (display.health.*) — **未落地** (PR 33 跟进) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 test_self_test_runtime.cpp, PR 17/32 同步元数据) |
 
 ---
 
@@ -163,3 +164,4 @@ avg_brightness > 250 AND color_variance < 10
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-06-01 | 1.0 | 初始创建 | requirements-agent |
+| 2026-06-04 | 1.1 | 元数据头部 + §6 实现追踪同步: 状态 Approved → Implemented (PR 17 SelfTestRuntime 已实现信号自检子功能), §6 加 L2 runtime 行 + 标记 QML/后端类/报警规则/信号监控 4 项**未落地** (待 PR 33 黑屏白屏检测跟进), 验证日期/结果填充 (PR 32) | can-dash-jd-autopilot |
