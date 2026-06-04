@@ -1,12 +1,13 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 5 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 6 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
-//   3. AlarmRuntime onValueChanged (28 keys × 17 rules) — 业务规则评估
+//   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
 //   4. shm read + 28 字段 copy → DisplaySnapshot — ShmDataSource::convertSnapshot 等价
-//   5. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
+//   5. 完整 16ms tick (write + read + convert + 22 alarm keys) — 端到端
+//   6. LimpHomeRuntime tick (critical signals, timeout 评估) — PR 43 L2 runtime 成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -155,7 +156,7 @@ void bench_shm_read(std::vector<int64_t>& samples) {
     }
 }
 
-// ─── 基准 3: AlarmRuntime onValueChanged (28 keys × 17 rules) ───
+// ─── 基准 3: AlarmRuntime onValueChanged (28 keys × 18 rules) ───
 // 模拟 EventBus 在 16ms tick 内广播 28 个 display_key 变化
 void bench_alarm_eval(std::vector<int64_t>& samples) {
     // 用 NoOp 回调（避免 Qt 信号）
@@ -381,7 +382,7 @@ int main() {
     printf("\n[2] shm read + checksum verify (memcpy + CRC32)\n");
     BenchStats s2 = run_bench("shm_read_verify", bench_shm_read);
 
-    printf("\n[3] AlarmRuntime onValueChanged × 22 keys (28 fields × 17 rules 过滤)\n");
+    printf("\n[3] AlarmRuntime onValueChanged × 22 keys (28 fields × 18 rules 过滤)\n");
     BenchStats s3 = run_bench("alarm_eval_22keys", bench_alarm_eval);
 
     printf("\n[4] shm read + 28 字段 copy → DisplaySnapshot (ShmDataSource::convertSnapshot 等价)\n");

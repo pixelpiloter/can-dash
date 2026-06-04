@@ -10,20 +10,20 @@
 |------|-------:|-------------:|------|
 | shm read + checksum verify | **1.2 µs** | 0.01% | ✅ |
 | 28 字段 convert (ShmDataSource 等价) | **1.2 µs** | 0.01% | ✅ |
-| AlarmRuntime onValueChanged × 22 keys | **1.5 µs** | 0.01% | ✅ |
+| AlarmRuntime onValueChanged × 22 keys | **1.2 µs** | 0.01% | ✅ |
 | LimpHomeRuntime tick (2 critical signals) | **<0.1 µs** | <0.001% | ✅ (PR 43 跛行) |
-| **dash tick 总计** | **3.8 µs** | **0.024%** | ✅ 99.98% headroom |
-| shm write + commit (含 msync) | 582 µs | 3.65% | ✅ 一次性落盘 |
-| 端到端 (含 processor 写盘) | 584 µs | 3.65% | ✅ |
+| **dash tick 总计** | **3.6 µs** | **0.022%** | ✅ 99.98% headroom |
+| shm write + commit (含 msync) | 594 µs | 3.71% | ✅ 一次性落盘 |
+| 端到端 (含 processor 写盘) | 596 µs | 3.73% | ✅ |
 
-**结论**：数据流链路在 16ms tick 预算下 **吃掉 0.024%**（dash 端）/ 3.65%（含 processor msync）。99.97% 的时间留给 QML 渲染、QTimer 调度、内核中断和 UI 事件循环。
+**结论**：数据流链路在 16ms tick 预算下 **吃掉 0.022%**（dash 端）/ 3.73%（含 processor msync）。99.98% 的时间留给 QML 渲染、QTimer 调度、内核中断和 UI 事件循环。
 
 ## 数据流架构（4 层耗时分解）
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │ can-processor (独立进程)                                       │
-│   shm_write_commit: 582 µs (memcpy + CRC32 + msync + frame_seq)│
+│   shm_write_commit: 594 µs (memcpy + CRC32 + msync + frame_seq)│
 └────────────┬───────────────────────────────────────────────────┘
              │ /dev/shm/can_display (tmpfs)
              ▼
@@ -31,9 +31,9 @@
 │ can-dash (QML 进程) — 16ms QTimer 驱动                         │
 │   shm_read_verify:    1.2 µs (memcpy + CRC32 verify)           │
 │   shm_to_snapshot:    1.2 µs (28 字段 copy 到 DisplaySnapshot) │
-│   alarm_eval_22keys:  1.5 µs (17 rules 过滤 + evalCondition)   │
+│   alarm_eval_22keys:  1.2 µs (18 rules 过滤 + evalCondition)   │
 │   ─────────────────────────────────────────                    │
-│   dash tick 总计:      3.8 µs (0.024% of 16ms)                 │
+│   dash tick 总计:      3.6 µs (0.022% of 16ms)                 │
 │   → 余 15.996 ms 给 QML 渲染 / 事件循环                        │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -83,19 +83,19 @@ ctest -R PerfBaselineTest -V
 构建:        -O2 -DNDEBUG (Release)
 shm 路径:    /tmp (ext4, 模拟"非 tmpfs 的最坏情况")
 
-[1] shm_write_commit        median= 582175 ns  p99=1274372 ns
-[2] shm_read_verify         median=   1189 ns  p99=   1224 ns
-[3] alarm_eval_22keys       median=   1472 ns  p99=   2042 ns
-[4] shm_to_snapshot         median=   1189 ns  p99=   1257 ns
-[5] full_tick               median= 584289 ns  p99= 827194 ns
-[6] limp_home_eval          median=     47 ns  p99=     70 ns  (PR 43, 2 critical signals)
+[1] shm_write_commit        median= 594293 ns  p99=1147756 ns
+[2] shm_read_verify         median=   1190 ns  p99=   1331 ns
+[3] alarm_eval_22keys       median=   1208 ns  p99=   2103 ns  (18 rules)
+[4] shm_to_snapshot         median=   1190 ns  p99=   1264 ns
+[5] full_tick               median= 596127 ns  p99= 835479 ns
+[6] limp_home_eval          median=     46 ns  p99=     82 ns  (PR 43, 2 critical signals)
 
-dash tick 总计:   3850 ns  (0.024% of 16ms)
-端到端 (含 msync): 584289 ns  (3.65% of 16ms)
-limp_home tick:     47 ns  (0.0003% of 16ms)
+dash tick 总计:   3588 ns  (0.022% of 16ms)
+端到端 (含 msync): 596127 ns  (3.73% of 16ms)
+limp_home tick:     46 ns  (0.0003% of 16ms)
 ```
 
-**注**：582 µs 的 shm_write_commit 主要由 `msync(MS_SYNC)` 主导（强制 tmpfs/pagecache 落盘）。
+**注**：594 µs 的 shm_write_commit 主要由 `msync(MS_SYNC)` 主导（强制 tmpfs/pagecache 落盘）。
 生产用 `/dev/shm/can_display` (tmpfs) 路径时该数字会降到 ~50µs 级别（无真实磁盘 IO）。
 **当前测试用 `/tmp` 是"非 tmpfs 最坏情况"**，能保证实测 ≥ 生产值。
 

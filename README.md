@@ -11,14 +11,14 @@
 
 ## 性能基线
 
-数据流热路径（shm + 28 字段 + 17 alarm rules）的端到端耗时：
+数据流热路径（shm + 28 字段 + 18 alarm rules）的端到端耗时：
 
-- **dash tick 总计: 3.8 µs (0.024% of 16ms 预算)**
+- **dash tick 总计: 3.6 µs (0.022% of 16ms 预算)**
 - shm read+checksum: 1.2 µs
-- AlarmRuntime 22 keys eval: 1.5 µs
-- 端到端 (含 processor msync): 584 µs (3.65%)
+- AlarmRuntime 22 keys eval: 1.2 µs
+- 端到端 (含 processor msync): 596 µs (3.73%)
 
-→ 99.97% 时间留给 QML 渲染 + 事件循环。详见 [PERFORMANCE.md](docs/PERFORMANCE.md)。
+→ 99.98% 时间留给 QML 渲染 + 事件循环。详见 [PERFORMANCE.md](docs/PERFORMANCE.md)。
 
 ## 快速开始
 
