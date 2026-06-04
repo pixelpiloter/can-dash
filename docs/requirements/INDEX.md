@@ -1,18 +1,20 @@
 # CAN-Dash 需求索引
 
-最后更新: 2026-06-04
+最后更新: 2026-06-04 (PR 24 同步)
 
 ## 统计
 
 | 类别 | 总数 | Approved | Implemented | Verified |
 |------|------|----------|-------------|----------|
-| ALM (报警) | 11 | 9 | 1 | 1 |
+| ALM (报警) | 11 | 4 | 6 | 1 |
 | HYBRID (混动特有) | 6 | 0 | 0 | 1 |
 | IND (指示灯) | 12 | 12 | 0 | 0 |
 | SIG (CAN信号) | 19 | 18 | 0 | 1 |
 | UI (界面) | 5 | 5 | 0 | 0 |
 | SYS (系统) | 5 | 4 | 0 | 0 |
-| **合计** | **58** | **48** | **1** | **3** |
+| **合计** | **58** | **43** | **6** | **3** |
+
+> **PR 24 同步说明**: 6 条 ALM 状态 Approved → Implemented (规则已在 `config/alarm_rules.yaml` 实现); 5 处 INDEX 标题错位已修齐到 `REQ-ALM-*.md` 文件实际标题 (006/008/009/010/011)。
 
 ---
 
@@ -22,17 +24,17 @@
 
 | ID | 标题 | 类型 | 优先级 | 状态 | 实现版本 |
 |----|------|------|--------|------|---------|
-| REQ-ALM-001 | 电池过压报警 | Safety | High | Approved | - |
-| REQ-ALM-002 | 电池欠压报警 | Safety | High | Approved | - |
-| REQ-ALM-003 | 电量低报警 (SOC<10%) | Safety | Medium | Approved | - |
-| REQ-ALM-004 | 电机温度过高报警 | Safety | High | Approved | - |
+| REQ-ALM-001 | 电池过压报警 | Safety | High | Implemented | alarm_rules.yaml:bat_overvolt (L5) |
+| REQ-ALM-002 | 电池欠压报警 | Safety | High | Implemented | alarm_rules.yaml:bat_undervolt (L21) |
+| REQ-ALM-003 | 电量低报警 (SOC<10%) | Safety | Medium | Implemented | alarm_rules.yaml:bat_soc_low (L37) |
+| REQ-ALM-004 | 电机温度过高报警 | Safety | High | Implemented | alarm_rules.yaml:motor_overtemp (L69) |
 | REQ-ALM-005 | 胎压低报警 | Safety, Functional | Critical | Implemented | - |
-| REQ-ALM-006 | 充电中禁止行驶报警 | Safety | High | Approved | - |
+| REQ-ALM-006 | 纯电模式指示灯控制 (EV Mode Active) | Functional | High | Approved | - |
 | REQ-ALM-007 | 电机超速报警 | Safety | High | Implemented | alarm_rules.yaml:motor_overspeed |
-| REQ-ALM-008 | 电池高温报警 | Safety | High | Approved | - |
-| REQ-ALM-009 | 充电超时报警 | Functional | Medium | Approved | - |
-| REQ-ALM-010 | 充电设备故障报警 | Safety | High | Approved | - |
-| REQ-ALM-011 | 充电桩通信超时报警 | Functional | Medium | Approved | - |
+| REQ-ALM-008 | 发动机驱动模式指示灯控制 (Engine Boost Active) | Functional | High | Approved | - |
+| REQ-ALM-009 | 充电模式指示灯控制 (Charge Mode Active) | Functional | Medium | Approved | - |
+| REQ-ALM-010 | 发动机故障报警 | Safety | High | Implemented | alarm_rules.yaml:charge_fault_alarm (L163) |
+| REQ-ALM-011 | 充电异常报警 | Functional | Medium | Approved | - |
 
 ### HYBRID (混动特有) — 6项
 
