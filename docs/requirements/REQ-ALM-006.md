@@ -1,12 +1,12 @@
 #REQ-ALM-006|纯电模式指示灯控制 (EV Mode Active)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Functional
-**优先级**: Low
-**来源**:   alarm_rules.yaml (已有) / REQ-HYBRID-001.md
+**优先级**: High
+**来源**:   alarm_rules.yaml (ev_mode_active) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: PR 25 (2026-06-04) — alarm_rules.yaml:ev_mode_active (L85)
 
 ---
 
@@ -81,7 +81,7 @@
 
 | 用例ID | 场景 | 输入 | 预期输出 | 状态 |
 |--------|------|------|---------|------|
-| TC-ALM-006-01 | EV模式 | energy_mode=0 | ev_mode_light亮，其他灭 | Approved |
+| TC-ALM-006-01 | EV模式 | energy_mode=0 | ev_mode_light亮，其他灭 | Implemented |
 
 ---
 
@@ -89,10 +89,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| QML组件 | `src/ui/IndicatorLight.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (ev_mode_active 规则, L85) |
+| 生成文件 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 5) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("energy_mode", 0)`) |
+| QML组件 | `src/ui/IndicatorLight.qml` (ev_mode_light / hybrid_mode_light / engine_run_light) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 alarm_rule_table 18 条规则) |
 
 ---
 
@@ -101,3 +103,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 2.0 | 状态同步 Approved → Implemented (PR 25, ev_mode_active 规则已实现) | can-dash-jd-autopilot |

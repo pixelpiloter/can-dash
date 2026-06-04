@@ -1,12 +1,12 @@
 #REQ-ALM-011|充电异常报警
 =========================================
 
-**状态**:   Approved
-**类型**:   Safety
-**优先级**: High
-**来源**:   alarm_rules.yaml (已有) / REQ-HYBRID-001.md
+**状态**:   Implemented
+**类型**:   Functional
+**优先级**: Medium
+**来源**:   alarm_rules.yaml (charge_fault_alarm) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: PR 25 (2026-06-04) — alarm_rules.yaml:charge_fault_alarm (L163)
 
 ---
 
@@ -66,11 +66,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| 生成代码 | `src/generated/alarm_rule_def.h` |
-| QML组件 | `src/ui/AlarmBanner.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (charge_fault_alarm 规则, L163) |
+| 生成文件 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 10) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("charge_fault", 1)`) |
+| QML组件 | `src/ui/AlarmBanner.qml` (charge_fault_light + 报警横幅) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 alarm_rule_table 18 条规则) |
 
 ---
 
@@ -79,3 +80,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 2.0 | 状态同步 Approved → Implemented (PR 25, charge_fault_alarm 规则已实现, 修正 PR 24 INDEX 行号引用错位 — 之前 010 误指 charge_fault_alarm 实际属于 011) | can-dash-jd-autopilot |

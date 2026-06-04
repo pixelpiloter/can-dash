@@ -1,12 +1,12 @@
 #REQ-ALM-010|发动机故障报警
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Safety
 **优先级**: High
-**来源**:   alarm_rules.yaml (已有) / REQ-HYBRID-001.md
+**来源**:   alarm_rules.yaml (engine_fault_alarm)
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: PR 25 (2026-06-04) — alarm_rules.yaml:engine_fault_alarm (L147)
 
 ---
 
@@ -70,8 +70,8 @@
 
 | 用例ID | 场景 | 输入 | 预期输出 | 状态 |
 |--------|------|------|---------|------|
-| TC-ALM-010-01 | 触发故障 | engine_fault=1 持续 250ms | 报警横幅+2Hz闪烁 | Approved |
-| TC-ALM-010-02 | 清除故障 | engine_fault恢复到0 | 200ms后清除 | Approved |
+| TC-ALM-010-01 | 触发故障 | engine_fault=1 持续 250ms | 报警横幅+2Hz闪烁 | Implemented |
+| TC-ALM-010-02 | 清除故障 | engine_fault恢复到0 | 200ms后清除 | Implemented |
 
 ---
 
@@ -79,11 +79,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| 生成代码 | `src/generated/alarm_rule_def.h` |
-| QML组件 | `src/ui/AlarmBanner.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (engine_fault_alarm 规则, L147) |
+| 生成代码 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 9) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("engine_fault", 1)`) |
+| QML组件 | `src/ui/AlarmBanner.qml` (engine_run_light + 报警横幅) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 alarm_rule_table 18 条规则) |
 
 ---
 
@@ -92,3 +93,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 2.0 | 状态同步 Approved → Implemented (PR 25, 修 PR 24 留下的 INDEX 行号引用错位 — 之前 010 误指 charge_fault_alarm 实际属于 011, 本 PR 25 修正为 engine_fault_alarm L147) | can-dash-jd-autopilot |

@@ -1,12 +1,12 @@
 #REQ-ALM-009|充电模式指示灯控制 (Charge Mode Active)
 =========================================
 
-**状态**:   Approved
+**状态**:   Implemented
 **类型**:   Functional
-**优先级**: Low
-**来源**:   alarm_rules.yaml (已有) / REQ-HYBRID-001.md
+**优先级**: Medium
+**来源**:   alarm_rules.yaml (charge_mode_active) / REQ-HYBRID-001.md
 **创建日期**: 2026-05-31
-**实现版本**: -
+**实现版本**: PR 25 (2026-06-04) — alarm_rules.yaml:charge_mode_active (L136)
 
 ---
 
@@ -60,10 +60,12 @@
 
 | 字段 | 值 |
 |------|-----|
-| 实现文件 | `config/alarm_rules.yaml` |
-| QML组件 | `src/ui/IndicatorLight.qml` |
-| 验证日期 | - |
-| 验证结果 | - |
+| 实现文件 | `config/alarm_rules.yaml` (charge_mode_active 规则, L136) |
+| 生成文件 | `src/generated/alarm_rule_table.cpp` (ALARM_RULE_TABLE 索引 8) |
+| 关联 L2 组件 | `src/layer2/alarm_runtime.cpp` (`onValueChanged("energy_mode", 3)`) |
+| QML组件 | `src/ui/IndicatorLight.qml` (energy_flow_light) |
+| 验证日期 | 2026-06-04 |
+| 验证结果 | 18/18 ctest pass (含 alarm_rule_table 18 条规则) |
 
 ---
 
@@ -72,3 +74,4 @@
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
 | 2026-05-31 | 1.0 | 初始创建 | requirements-document-agent |
+| 2026-06-04 | 2.0 | 状态同步 Approved → Implemented (PR 25, charge_mode_active 规则已实现) | can-dash-jd-autopilot |
