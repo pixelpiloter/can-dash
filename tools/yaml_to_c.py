@@ -357,7 +357,7 @@ const SeatPositionDef SEAT_POSITION_TABLE[] = {{
 
 const int SEAT_POSITION_TABLE_COUNT = {len(positions)};
 
-const SeatBeltConfigDef SEAT_BELT_CONFIG = {{
+__attribute__((used)) extern const SeatBeltConfigDef SEAT_BELT_CONFIG = {{
 {config_str}
 }};
 """
@@ -427,7 +427,7 @@ def gen_limp_home_table_c(limp_data: Dict) -> str:
 
 #include "limp_home_def.h"
 
-const LimpHomeConfigDef LIMP_HOME_CONFIG = {{
+__attribute__((used)) extern const LimpHomeConfigDef LIMP_HOME_CONFIG = {{
     {{ {crit_str} }},
     {len(crit)},
     {{ {t1.get('timeout_ms', 500)}u, {t1.get('min_timeout_signals', 1)} }},
