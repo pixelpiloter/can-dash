@@ -1,7 +1,7 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 11 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 12 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
@@ -13,6 +13,7 @@
 //   9. WarningManager tick + activeWarnings + hasCritical (去重/防抖/hold) — PR 9 L2 告警成本
 //  10. ChimeManager tick + hasActiveChime + activeChime (防抖/过期清除/active 复制) — PR 14 L2 提示音成本
 //  11. IndicatorRuntime tick + activeCount + isOn×N (事件驱动 setIndicator 状态查询) — PR 61 L2 指示灯成本
+//  12. SeatBeltRuntime tick + query (5 座位 occupied/buckled 状态机 + warning 评估) — PR 62 L2 安全带成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -47,9 +48,11 @@
 #include "layer2/trip_computer.h"
 #include "layer2/warning_manager.h"  // PR 59 perf baseline
 #include "layer2/chime_manager.h"  // PR 60 perf baseline
+#include "layer2/seat_belt_runtime.h"  // PR 62 perf baseline
 #include "generated/alarm_rule_def.h"
 #include "generated/indicator_def.h"  // PR 61 perf baseline (INDICATOR_TABLE)
 #include "generated/limp_home_def.h"
+#include "generated/seat_belt_def.h"  // PR 62 perf baseline (SEAT_POSITION_TABLE)
 
 namespace {
 
@@ -541,6 +544,62 @@ void bench_indicator_runtime_tick(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── SeatBeltRuntime tick + query (PR 62 L2 安全带成本) ───
+// 模拟 16ms tick 周期内: ShmDataSource 推 shm.last_commit_ms 调 m_seatBelt.tick()
+// + m_seatBelt.query() 取 5 座位的 warning 状态填 snapshot
+// 跟 ShmDataSource::onTick L380-405 调用顺序一致: tick(now_ms) + query(out) 填 snapshot
+// SeatBeltRuntime 在全局命名空间 (跟 AlarmRuntime/LimpHomeRuntime 一致, 跟 candash:: 不同)
+// bench 启动前预 occupy 5 座位 + buckled 4/5 (驾驶员/副驾/后排左/右 已系, 后排中 未系)
+// → 1 座位 warning 触发, query 输出 "后排中请系安全带", 测典型 onTick 成本
+// (空 manager 是退化情况, 不能反映"驾驶中有人未系安全带"真实场景)
+// 跟 indicator_runtime_tick 一样: query() 是 display 旁路 (L2 runtime 不在 dash tick 热路径上),
+// L3 shm_data_source 走 shm.driver_occupied/passenger_occupied/rear_buckle 直接 L1 镜像计算 warning
+// 故归类 "display 旁路", 不计入 dash tick 总计 (跟 PR 58/59/60/61 决策原则一致)
+void bench_seat_belt_runtime_tick(std::vector<int64_t>& samples) {
+    SeatBeltRuntime seat;
+    seat.init(SEAT_POSITION_TABLE, SEAT_POSITION_TABLE_COUNT, &SEAT_BELT_CONFIG);
+    // 模拟驾驶中: 5 座位 occupied + 4/5 buckled, 触发 1 条 warning
+    // updateSpeed(60, true) 让 moving=true, 切换状态机后每个座位 evaluate
+    seat.updateSpeed(60.0f, true);
+    // 用 SEAT_POSITION_TABLE 里的真实座位 id (config/seat_belt.yaml 5 座位)
+    // 数据格式: data[0] bit 0/1/2/3 各自代表 4 个 seat signals
+    uint8_t data[8] = {0};
+    // 占用 5 座位: occupied bit 0..4 置 1
+    data[0] = 0x1F;  // 0b00011111
+    seat.updateCanFrame(0x101, data, 8);  // 假设 seat_occupied_can_id=0x101
+    // 系 4/5: 假设 rear_middle 单独 can_id, 先用 0x105 表示
+    // 简化: 4 已系 + 1 未系, 用 0xFF 全 1 表示 5 座位 buckled bit, 但我们只取低 5 位
+    // 实际 Yaml 生成的多 can_id, 这里只 bench 算法成本, 数据形状不影响
+    uint8_t buckled[8] = {0x0F};  // 0b00001111 = 4 已系 (假设后排中 bit 3 = 0)
+    seat.updateCanFrame(0x102, buckled, 8);
+    // 时间起点: 假装现在 t=1000ms (跟 indicator_runtime_tick / chime_manager_tick 一致)
+    uint64_t now = 1000;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 跟 ShmDataSource::onTick 概念路径一致: tick 推进 + query 填 snapshot
+        seat.tick(now);
+        // 模拟 snapshot 字段填充: warning_active + any_unbuckled + unbuckled_count + 5 座位的 warning
+        SeatBeltQueryResult q;
+        seat.query(q);
+        // (volatile 防止编译器把整个读链优化掉)
+        volatile bool warn_active = q.anyWarning;
+        volatile bool any_unbuckled = q.anyUnbuckled;
+        volatile int unbuckled_cnt = q.unbuckledCount;
+        volatile int seat_count = SEAT_POSITION_TABLE_COUNT;
+        // 读所有座位 warning (snapshot 字段: seats[i].warning × 5)
+        volatile int warn_seats = 0;
+        for (int s = 0; s < SEAT_POSITION_TABLE_COUNT; ++s) {
+            if (seat.states().seats[s].warning) warn_seats++;
+        }
+        (void)warn_active; (void)any_unbuckled; (void)unbuckled_cnt;
+        (void)seat_count; (void)warn_seats;
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -606,6 +665,9 @@ int main() {
     printf("\n[11] IndicatorRuntime tick + activeCount + isOn×5 (事件驱动 setIndicator 状态查询) (PR 61)\n");
     BenchStats s11 = run_bench("indicator_runtime_tick", bench_indicator_runtime_tick);
 
+    printf("\n[12] SeatBeltRuntime tick + query (5 座位 occupied/buckled 状态机 + warning 评估) (PR 62)\n");
+    BenchStats s12 = run_bench("seat_belt_runtime_tick", bench_seat_belt_runtime_tick);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
     // 单 dash 端 tick = read + convert + alarm eval + trip_computer
     int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns + s7.median_ns;
@@ -616,6 +678,7 @@ int main() {
     int64_t warn_tick_ns  = s9.median_ns;
     int64_t chime_tick_ns = s10.median_ns;
     int64_t indicator_tick_ns = s11.median_ns;
+    int64_t seat_belt_tick_ns = s12.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -642,6 +705,8 @@ int main() {
            chime_tick_ns, chime_tick_ns / 16000000.0 * 100.0);
     printf("  indicator tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 61 L2 指示灯状态查询, 不计入 dash tick 总计)\n",
            indicator_tick_ns, indicator_tick_ns / 16000000.0 * 100.0);
+    printf("  seat_belt tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 62 L2 安全带 5 座状态机, 不计入 dash tick 总计)\n",
+           seat_belt_tick_ns, seat_belt_tick_ns / 16000000.0 * 100.0);
     printf("  → headroom for QML/Paint : %.2f%% (= 16ms - %" PRId64 " ns)\n",
            100.0 - budget_pct, dash_tick_ns);
 
@@ -670,6 +735,8 @@ int main() {
     printf("  \"chime_manager_tick_p99_ns\":      %" PRId64 ",\n", s10.p99_ns);
     printf("  \"indicator_runtime_tick_median_ns\": %" PRId64 ",\n", s11.median_ns);
     printf("  \"indicator_runtime_tick_p99_ns\":    %" PRId64 ",\n", s11.p99_ns);
+    printf("  \"seat_belt_runtime_tick_median_ns\": %" PRId64 ",\n", s12.median_ns);
+    printf("  \"seat_belt_runtime_tick_p99_ns\":    %" PRId64 ",\n", s12.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);
