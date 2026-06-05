@@ -1,7 +1,7 @@
 // test_perf_baseline.cpp
 // 性能基线测试 — 测量数据流热路径耗时
 //
-// 测量 10 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
+// 测量 11 个关键指标（取中位数 + p99，warmup 100 轮后跑 1000 轮）：
 //   1. shm write + commit（checksum + msync）— IPC 写
 //   2. shm read + checksum verify — IPC 读
 //   3. AlarmRuntime onValueChanged (28 keys × 18 rules) — 业务规则评估
@@ -12,6 +12,7 @@
 //   8. ThemeManager tick + colors (AUTO 模式 hour 推算 + DAY/NIGHT 评估) — PR 7 L2 主题成本
 //   9. WarningManager tick + activeWarnings + hasCritical (去重/防抖/hold) — PR 9 L2 告警成本
 //  10. ChimeManager tick + hasActiveChime + activeChime (防抖/过期清除/active 复制) — PR 14 L2 提示音成本
+//  11. IndicatorRuntime tick + activeCount + isOn×N (事件驱动 setIndicator 状态查询) — PR 61 L2 指示灯成本
 //
 // 设计原则：
 //   - 无 Qt 依赖（仅 C++17 + cassert + chrono），保证 CI 跑得起
@@ -39,6 +40,7 @@
 #include <fcntl.h>
 #include "layer1/shm/shm_display.h"
 #include "layer2/alarm_runtime.h"
+#include "layer2/indicator_runtime.h"  // PR 61 perf baseline
 #include "layer2/limp_home_runtime.h"
 #include "layer2/theme_manager.h"
 #include "layer2/time_util.h"
@@ -46,6 +48,7 @@
 #include "layer2/warning_manager.h"  // PR 59 perf baseline
 #include "layer2/chime_manager.h"  // PR 60 perf baseline
 #include "generated/alarm_rule_def.h"
+#include "generated/indicator_def.h"  // PR 61 perf baseline (INDICATOR_TABLE)
 #include "generated/limp_home_def.h"
 
 namespace {
@@ -491,6 +494,53 @@ void bench_chime_manager_tick(std::vector<int64_t>& samples) {
     }
 }
 
+// ─── IndicatorRuntime tick + activeCount + isOn×N (PR 61 L2 指示灯成本) ──
+// 模拟 16ms tick 周期内: QML/AlarmRuntime 经 DashboardBackend::setIndicator 事件驱动
+// 推 indicator 状态后, ShmDataSource::onTick 调 m_indicator.tick() + activeCount()
+// + isOn(<id>) 读若干个 indicator 状态填 snapshot
+// 跟 ShmDataSource::onTick L408-413 路径互补: shm 端 L1 镜像走 shm.indicators[] 直接读
+// (不走 L2 runtime), L2 runtime 仅服务 QML/AlarmRuntime 的状态查询 + setIndicator 推送,
+// 故归类 "display 旁路", 不计入 dash tick 总计 (跟 theme/warning/chime 决策原则一致)
+// bench 启动前预 setIndicator 3 个 (turn_left/turn_right/high_beam), 模拟"开着转向灯 + 远光"
+// 每个 tick: tick() + activeCount() + isOn() × 5 (DISPLAY_INDICATOR_COUNT=12, 测前 5 个最常用)
+// 每 64 tick (~1 秒) 切一次转向灯, 模拟事件驱动 setIndicator 频率
+// (16ms 周期内 1000 次 setIndicator 是不真实负载, 应该事件驱动, 跟 chime 一致不进 hot path)
+void bench_indicator_runtime_tick(std::vector<int64_t>& samples) {
+    IndicatorRuntime ind;
+    ind.init(INDICATOR_TABLE, INDICATOR_TABLE_COUNT);
+    // 预 setIndicator 3 个 (典型"驾驶中开远光 + 转向灯"场景)
+    // 用真实 INDICATOR_TABLE 里的 id (config/indicators.yaml 17 个)
+    ind.setIndicator("high_beam_light",   true, false, 0.0f);  // 远光常亮
+    ind.setIndicator("turn_left_light",   true, true,  1.5f);  // 左转向 1.5Hz
+    ind.setIndicator("turn_right_light",  true, true,  1.5f);  // 右转向 1.5Hz
+    // 时间起点: 假装现在 t=1000ms (跟 chime_manager_tick / theme_tick / trip_computer_tick 一致)
+    uint64_t now = 1000;
+    Stopwatch sw;
+    for (int i = 0; i < 1000; i++) {
+        sw.start();
+        // 跟 ShmDataSource::onTick 概念路径一致: tick 推进 (L1 镜像走 shm, 不调 L2.tick 也行,
+        // 但 L2 tick 是 no-op + m_lastTickMs 记录, 测真实成本)
+        ind.tick(now);
+        // 模拟 snapshot 字段填充: active_count + isOn × 5
+        // (volatile 防止编译器把整个读链优化掉)
+        volatile int active = ind.activeCount();
+        volatile bool b1 = ind.isOn("high_beam_light");
+        volatile bool b2 = ind.isOn("turn_left_light");
+        volatile bool b3 = ind.isOn("turn_right_light");
+        volatile bool b4 = ind.isOn("bat_warn_light");
+        volatile bool b5 = ind.isOn("engine_run_light");
+        (void)active; (void)b1; (void)b2; (void)b3; (void)b4; (void)b5;
+        // 每 64 tick 模拟一次事件驱动 setIndicator 切换 (转向灯 on/off 周期)
+        if ((i & 63) == 0) {
+            const bool on = (i & 127) == 0;
+            ind.setIndicator("turn_left_light", on, on, on ? 1.5f : 0.0f);
+        }
+        // 推进 16ms 到下一 tick
+        now += 16;
+        samples.push_back(sw.elapsed_ns());
+    }
+}
+
 // ─── Warmup + 跑 1000 轮 + 统计 ─────────────────────
 template <typename BenchFn>
 BenchStats run_bench(const char* name, BenchFn fn) {
@@ -553,6 +603,9 @@ int main() {
     printf("\n[10] ChimeManager tick + hasActiveChime + activeChime (CRITICAL chime 过期 + 查 active) (PR 14)\n");
     BenchStats s10 = run_bench("chime_manager_tick", bench_chime_manager_tick);
 
+    printf("\n[11] IndicatorRuntime tick + activeCount + isOn×5 (事件驱动 setIndicator 状态查询) (PR 61)\n");
+    BenchStats s11 = run_bench("indicator_runtime_tick", bench_indicator_runtime_tick);
+
     // ─── 16ms tick 预算分析 ─────────────────────────
     // 单 dash 端 tick = read + convert + alarm eval + trip_computer
     int64_t dash_tick_ns = s2.median_ns + s4.median_ns + s3.median_ns + s7.median_ns;
@@ -562,6 +615,7 @@ int main() {
     int64_t theme_tick_ns = s8.median_ns;
     int64_t warn_tick_ns  = s9.median_ns;
     int64_t chime_tick_ns = s10.median_ns;
+    int64_t indicator_tick_ns = s11.median_ns;
     double budget_pct = static_cast<double>(dash_tick_ns) / 16000000.0 * 100.0;
 
     printf("\n=== 16ms tick 预算分析 (dash 端, processor 端在另一进程) ===\n");
@@ -586,6 +640,8 @@ int main() {
            warn_tick_ns, warn_tick_ns / 16000000.0 * 100.0);
     printf("  chime tick (display 旁路)  : %7" PRId64 " ns (%.4f%%) (PR 14 L2 提示音防抖/过期清除, 不计入 dash tick 总计)\n",
            chime_tick_ns, chime_tick_ns / 16000000.0 * 100.0);
+    printf("  indicator tick (display 旁路): %7" PRId64 " ns (%.4f%%) (PR 61 L2 指示灯状态查询, 不计入 dash tick 总计)\n",
+           indicator_tick_ns, indicator_tick_ns / 16000000.0 * 100.0);
     printf("  → headroom for QML/Paint : %.2f%% (= 16ms - %" PRId64 " ns)\n",
            100.0 - budget_pct, dash_tick_ns);
 
@@ -612,6 +668,8 @@ int main() {
     printf("  \"warning_manager_tick_p99_ns\":    %" PRId64 ",\n", s9.p99_ns);
     printf("  \"chime_manager_tick_median_ns\":   %" PRId64 ",\n", s10.median_ns);
     printf("  \"chime_manager_tick_p99_ns\":      %" PRId64 ",\n", s10.p99_ns);
+    printf("  \"indicator_runtime_tick_median_ns\": %" PRId64 ",\n", s11.median_ns);
+    printf("  \"indicator_runtime_tick_p99_ns\":    %" PRId64 ",\n", s11.p99_ns);
     printf("  \"dash_tick_total_ns\":          %" PRId64 ",\n", dash_tick_ns);
     printf("  \"16ms_budget_pct\":             %.3f,\n", budget_pct);
     printf("  \"alarm_rule_count\":            %d,\n", ALARM_RULE_TABLE_COUNT);
