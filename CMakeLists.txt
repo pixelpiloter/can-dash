@@ -273,6 +273,7 @@ add_test(NAME DisplayManagerTest COMMAND test_display_manager)
 # 永远 print 数字，预算超 50% 时给出 warning（不 hard-fail，避免不同机器抖动）
 add_executable(test_perf_baseline tests/test_perf_baseline.cpp
     ${LAYER2_DIR}/alarm_runtime.cpp
+    ${LAYER2_DIR}/chime_manager.cpp  # PR 60 perf baseline
     ${LAYER2_DIR}/limp_home_runtime.cpp  # PR 47 perf baseline
     ${LAYER2_DIR}/theme_manager.cpp  # PR 58 perf baseline
     ${LAYER2_DIR}/time_util.cpp
