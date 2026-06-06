@@ -209,16 +209,18 @@ static void test_tick_24h_rollover() {
     t.tick(0);
     assert(t.isDay() == false);
 
-    // tick(3h) → hour=25%24=1 → NIGHT (凌晨 1 点)
+    // tick(3h 累计 3h) → hour=22+3=25%24=1 → NIGHT (凌晨 1 点)
     t.tick(3ULL * 3600 * 1000);
     assert(t.isDay() == false);
     assert(t.currentHour() == 1);
 
-    // tick(5h 累计 8h) → hour=30%24=6 → DAY (跨 sunrise)
-    t.tick(5ULL * 3600 * 1000);
+    // tick(8h 绝对时间) → hour=22+8=30%24=6 → DAY (跨 sunrise)
+    // 注意: tick() 接收绝对时间, 不是 delta. 上一 tick 在 3h, 这次 tick 在 8h, delta=5h.
+    //       测试命名 "24h 环绕" 关注的是 24h 跨日, 22→6 已穿过 0 点 (跨日) 即可.
+    t.tick(8ULL * 3600 * 1000);
     assert(t.isDay() == true);
     assert(t.currentHour() == 6);
-    printf("  ✓ tick() 24h 环绕: 22→1→6, 正确判定 NIGHT/NIGHT/DAY\n");
+    printf("  ✓ tick() 24h 环绕: 22→1→6, 正确判定 NIGHT/NIGHT/DAY (跨过 0 点)\n");
 }
 
 static void test_tick_time_travel_defense() {

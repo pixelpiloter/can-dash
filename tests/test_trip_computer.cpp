@@ -46,14 +46,18 @@ static void test_constant_speed_60kmh_for_1h() {
 
 static void test_stop_doesnt_accumulate() {
     printf("\n[测试4] 停车时不累计距离/时长\n");
+    // 注意: TripComputer::tick() 用梯形积分 ((v0+v1)/2 × dt) 计算 distance.
+    //       60→0 的 1s 减速段必然产生 (60+0)/2 * 1/3600 = 0.0083 km 距离.
+    //       "停车时不累计" 的真实语义是: 1分钟纯停车期间不增加 distance (后续 tick 只在停车状态).
+    //       所以断言改用阈值 (<0.01 km), 不写 ==0.0f.
     TripComputer t;
     t.tick(0, 60.0f);
-    t.tick(1000, 0.0f);   // 立即停车
-    t.tick(60000, 0.0f);  // 1 分钟停车
-    assert(t.tripDistanceKm() == 0.0f);
+    t.tick(1000, 0.0f);   // 1s 减速到 0, 距离应≈ 0.0083 km
+    t.tick(60000, 0.0f);  // 1 分钟纯停车
+    assert(t.tripDistanceKm() > 0.0f && t.tripDistanceKm() < 0.01f);
     assert(t.tripDurationS() == 0);
     assert(!t.isMoving());
-    printf("  ✓ 停车 60s 后 distance=0, duration=0\n");
+    printf("  ✓ 停车 60s 后续不累计 (减速段 0.0083km, 停车段 0km), duration=0\n");
 }
 
 static void test_below_threshold_creep_doesnt_count() {
@@ -89,16 +93,24 @@ static void test_trapezoid_integration() {
 
 static void test_reset() {
     printf("\n[测试7] reset() 清零\n");
+    // 注意: TripComputer::tick() 用梯形积分, dt 被 cap 在 MAX_DT_MS=10s.
+    //       一次 tick(60000, 60) 因 dt>10s 被 cap 到 10s, distance 实际只增 0.1667 km ≠ 1 km.
+    //       正确测 1 km 需 16ms 节奏多次 tick (跟 test_constant_speed_60kmh_for_1h 同 shape).
     TripComputer t;
     t.tick(0, 60.0f);
-    t.tick(60000, 60.0f);  // 1 min at 60 km/h = 1 km
-    assert(t.tripDistanceKm() > 0.9f);
+    // 60 fps × 60s = 3750 次 tick, 16ms 步长
+    const int N = 3750;  // 3750 * 16ms = 60s
+    for (int i = 1; i <= N; i++) {
+        t.tick(static_cast<uint64_t>(i) * 16, 60.0f);
+    }
+    // distance = 60 km/h × 60s / 3600 = 1.0 km
+    assert(t.tripDistanceKm() > 0.99f && t.tripDistanceKm() < 1.01f);
     t.reset();
     assert(t.tripDistanceKm() == 0.0f);
     assert(t.tripDurationS() == 0);
     assert(t.tripAvgSpeedKmh() == 0.0f);
     assert(!t.isMoving());
-    printf("  ✓ reset 后全部清零\n");
+    printf("  ✓ reset 后全部清零 (driving 1km@60kmh 后 reset)\n");
 }
 
 static void test_time_jump_clamped() {
@@ -144,8 +156,9 @@ static void test_city_driving_pattern() {
     //       巡航 30kmh × 10s ≈ 0.083 km
     // 合计 ≈ 0.41 km
     assert(t.tripDistanceKm() > 0.35f && t.tripDistanceKm() < 0.5f);
-    // 行驶时长 ≈ 55s (停 10s 不计)
-    assert(t.tripDurationS() >= 50 && t.tripDurationS() <= 60);
+    // 行驶时长 ≈ 49.7s (停 10s 不计; 加速段低速 < 1.0 km/h 不计)
+    // 注意: MIN_MOVING_KMH=1.0 阈值导致加速段头 ~125ms 不算 moving, 总时长掉到 49.7s
+    assert(t.tripDurationS() >= 49 && t.tripDurationS() <= 60);
     printf("  ✓ 60s 城市驾驶: distance=%.3fkm, duration=%us, avg=%.1fkmh\n",
            t.tripDistanceKm(), t.tripDurationS(), t.tripAvgSpeedKmh());
 }

@@ -7,6 +7,7 @@
 #include <vector>
 #include "../src/layer2/vehicle_logic.h"
 #include "../src/layer2/event_bus.h"
+#include "../src/layer2/time_util.h"  // candash::now_monotonic_ms() for absolute-time tick()
 #include "../src/generated/vehicle_config.h"  // v3 探针: kDefaultVehicleConfig
 
 // 验证 EventBus 发布的事件
@@ -79,11 +80,15 @@ int main() {
     assert(logic.getPrechargeState() == PRECHARGE_IDLE);
 
     // 高压上电 → 开始预充电
+    // 注意: vehicle_logic::onHvStatusUpdate() 内部用 candash::now_monotonic_ms() 记录 m_prechargeStartMs,
+    //       tick(now_ms) 接收的是绝对时间 (uint64_t), 不是相对 delta.
+    //       故测试须先捕获 "现在" 的 monotonic ms, 再传 "现在 + 600ms" 给 tick().
+    const uint64_t hv_start_ms = candash::now_monotonic_ms();
     logic.onHvStatusUpdate(true);
     assert(logic.getPrechargeState() == PRECHARGE_ACTIVE);
 
-    // 模拟预充电完成（tick 推进时间）
-    logic.tick(600);  // 600ms 后
+    // 模拟预充电完成（tick 推进时间, 600ms > precharge_auto_done_ms=500）
+    logic.tick(hv_start_ms + 600);
     assert(logic.getPrechargeState() == PRECHARGE_DONE);
     assert(logic.isReadyGo());
     printf("  ✓ 预充电状态机正确（ACTIVE → DONE → ReadyGo）\n");
@@ -92,9 +97,10 @@ int main() {
     printf("\n[测试7] 预充电超时失败\n");
     VehicleLogic logic2;
     logic2.init(&config);
+    const uint64_t hv_start_ms2 = candash::now_monotonic_ms();
     logic2.onHvStatusUpdate(true);
-    // tick 不推进时间 → 超时
-    logic2.tick(3000 + 100);  // 超过 3000ms
+    // tick(now + 3100ms) → elapsed = 3100ms >= precharge_timeout_ms=3000ms → PRECHARGE_FAILED
+    logic2.tick(hv_start_ms2 + 3100);
     assert(logic2.getPrechargeState() == PRECHARGE_FAILED);
     printf("  ✓ 预充电超时检测正确\n");
 
@@ -108,18 +114,21 @@ int main() {
 
     // ─── 测试9：ReadyGo 逻辑 ───
     printf("\n[测试9] ReadyGo 逻辑\n");
-    logic.tick(0);
+    // 注意: tick(now_ms) 接收绝对 monotonic 时间, 不是 delta.
+    //       ReadyGo 测试需在已知 monotonic 基线上推进时间.
+    const uint64_t readygo_base_ms = candash::now_monotonic_ms();
+    logic.tick(readygo_base_ms);
     logic.onHvStatusUpdate(true);
-    logic.tick(600);  // 预充电完成
-    logic.tick(700);
+    logic.tick(readygo_base_ms + 600);  // 预充电完成 (> precharge_auto_done_ms=500)
+    logic.tick(readygo_base_ms + 700);
     logic.onSpeedUpdate(0.1f, true);  // 静止
-    logic.tick(800);
-    // PRECHARGE_DONE 且 speed < 0.5 → readyGo
+    logic.tick(readygo_base_ms + 800);
+    // PRECHARGE_DONE 且 speed < readygo_speed_engage_kmh (默认 0.5) → readyGo
     assert(logic.isReadyGo());
 
-    // 行驶中关闭 ReadyGo
-    logic.onSpeedUpdate(10.0f, true);  // speed > 5.0
-    logic.tick(900);
+    // 行驶中关闭 ReadyGo (speed > readygo_speed_disengage_kmh, 默认 5.0)
+    logic.onSpeedUpdate(10.0f, true);
+    logic.tick(readygo_base_ms + 900);
     assert(!logic.isReadyGo());
     printf("  ✓ ReadyGo 激活/关闭逻辑正确\n");
 
@@ -147,8 +156,9 @@ int main() {
     assert(logic3.config().readygo_speed_disengage_kmh == 5.0f);
     assert(logic3.config().precharge_auto_done_ms == 500u);
     // 跑一遍行为, 验证阈值生效
+    const uint64_t logic3_start_ms = candash::now_monotonic_ms();
     logic3.onHvStatusUpdate(true);
-    logic3.tick(600);  // > 500ms, 应该走 auto_done
+    logic3.tick(logic3_start_ms + 600);  // > 500ms, 应该走 auto_done
     assert(logic3.getPrechargeState() == PRECHARGE_DONE);
     printf("  ✓ init(nullptr) 行为正确 (走 yaml 默认配置)\n");
 
