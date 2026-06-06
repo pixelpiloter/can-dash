@@ -74,8 +74,13 @@ Item {
                         checked: filterDebug
                         onCheckedChanged: filterDebug = checked
                         indicator.width: 14; indicator.height: 14
-                        contentItem.children[0].color: "#888888"
-                        font.pixelSize: 11
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#888888"
+                            leftPadding: parent.indicator.width + 4
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 11
+                        }
                     }
 
                     // INFO checkbox
@@ -85,8 +90,13 @@ Item {
                         checked: filterInfo
                         onCheckedChanged: filterInfo = checked
                         indicator.width: 14; indicator.height: 14
-                        contentItem.children[0].color: "#FFFFFF"
-                        font.pixelSize: 11
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#FFFFFF"
+                            leftPadding: parent.indicator.width + 4
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 11
+                        }
                     }
 
                     // WARN checkbox
@@ -96,8 +106,13 @@ Item {
                         checked: filterWarn
                         onCheckedChanged: filterWarn = checked
                         indicator.width: 14; indicator.height: 14
-                        contentItem.children[0].color: "#FFAA00"
-                        font.pixelSize: 11
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#FFAA00"
+                            leftPadding: parent.indicator.width + 4
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 11
+                        }
                     }
 
                     // ERROR checkbox
@@ -107,8 +122,13 @@ Item {
                         checked: filterError
                         onCheckedChanged: filterError = checked
                         indicator.width: 14; indicator.height: 14
-                        contentItem.children[0].color: "#FF4400"
-                        font.pixelSize: 11
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#FF4400"
+                            leftPadding: parent.indicator.width + 4
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 11
+                        }
                     }
 
                     Rectangle { width: 1; height: 20; color: "#33AAAAFF" }
