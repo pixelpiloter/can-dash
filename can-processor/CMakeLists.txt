@@ -27,6 +27,7 @@ set(GENERATED_DIR ${CAN_DASH_ROOT}/src/generated)
 
 include_directories(
     ${CAN_DASH_ROOT}/src
+    ${CAN_DASH_ROOT}/src/layer2
     ${GENERATED_DIR}
 )
 
@@ -58,8 +59,10 @@ set(GENERATED_SOURCES
     ${GENERATED_DIR}/can_field_table.cpp
     ${GENERATED_DIR}/alarm_rule_table.cpp
     ${GENERATED_DIR}/indicator_table.cpp
+    ${GENERATED_DIR}/limp_home_table.cpp
     ${GENERATED_DIR}/seat_belt_table.cpp
     ${GENERATED_DIR}/signal_table.cpp
+    ${GENERATED_DIR}/vehicle_config.cpp
 )
 
 add_executable(can-processor

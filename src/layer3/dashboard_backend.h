@@ -186,7 +186,7 @@ public:
     Q_INVOKABLE QVariant get(const QString& key) const;
     Q_INVOKABLE void set(const QString& key, const QVariant& value);
     Q_INVOKABLE bool indicatorOn(const QString& key) const;
-    Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash, float hz);
+    Q_INVOKABLE void setIndicator(const QString& widget_id, bool on, bool flash = false, float hz = 1.0f);
     Q_INVOKABLE QString tr(const QString& key) const;
     Q_INVOKABLE void setLanguage(const QString& lang);
     // QML 端 "重置小计" 按钮调用
