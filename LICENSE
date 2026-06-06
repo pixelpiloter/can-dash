@@ -1,0 +1,49 @@
+CAN-Dash
+Copyright (C) 2026 CAN-Dash contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+商业化特别说明 (Commercial Use Restriction)
+================================================================================
+
+本项目以 GNU AGPL-3.0 协议发布,在此基础上额外明示:
+
+任何"商业化使用" — 包括但不限于:
+
+  1. 销售包含本项目代码(全部或部分)的硬件/软件产品
+  2. 以 SaaS / PaaS / 托管服务的形式对外提供本项目的功能
+  3. 围绕本项目提供收费培训、技术支持、咨询、集成或定制服务
+  4. 将本项目代码(无论修改与否)集成到商业产品后对外分发
+  5. 在企业内部用于产生商业收入的场景(超出纯内部研发自用范围)
+
+—— 均需事先获得版权所有者的**书面授权**。
+
+未经授权的商业化使用构成对 AGPL-3.0 第 13 条 (Remote Network Interaction;
+Use with the GNU General Public License) 及本特别说明的违反,版权所有者保留
+依据 AGPL-3.0、相关版权法及合同法追究法律责任的权利。
+
+允许的范围(无需授权):
+  * 个人学习、研究、阅读源码
+  * 非商业的二次开发、修改、PR 贡献
+  * 非商业的内部测试、验证
+  * 教学/培训场景(非商业收费)
+  * 学术论文/开源衍生作品(以 AGPL-3.0 同步发布)
+
+如需商业授权,请联系: <980464102@qq.com>
+
+================================================================================
+完整许可证文本: <https://www.gnu.org/licenses/agpl-3.0.txt>
+SPDX-License-Identifier: AGPL-3.0-or-later
+================================================================================

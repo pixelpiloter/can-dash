@@ -1,5 +1,8 @@
 # Contributing to can-dash
 
+> **License: AGPL-3.0 + 商业化限制** — 详见 [LICENSE](LICENSE)。
+> 贡献的代码默认以 AGPL-3.0 发布;任何包含本项目的商业化使用需获书面授权。
+
 Thanks for keeping the cluster safe and the build clean. This file covers
 the rules — the architecture lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 
