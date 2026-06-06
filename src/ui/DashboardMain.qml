@@ -146,7 +146,7 @@ ApplicationWindow {
         value: 0
         unit: dashboard.tr("unit.rpm")
         dialColor: "#1a3a5c"
-        needleColor: "#00AAFF"
+        needleColorNormal: "#00AAFF"
         labelColor: "#88CCFF"
         majorTickCount: 8
         minorTicksPerMajor: 5
@@ -165,7 +165,7 @@ ApplicationWindow {
         value: 0
         unit: dashboard.tr("unit.speed")
         dialColor: "#1a2a1a"
-        needleColor: "#00FF88"
+        needleColorNormal: "#00FF88"
         labelColor: "#88FF88"
         majorTickCount: 13
         minorTicksPerMajor: 5
