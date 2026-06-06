@@ -98,9 +98,9 @@ class CanSimulator:
         sock.send(msg)
 
     def update_driving(self, tick: int):
-        """驾驶循环：每 30s 一个完整周期（0→120km/h→0）"""
-        # 周期 600 ticks（30s @ 50ms）
-        phase = (tick % 600) / 600.0
+        """驾驶循环：每 12s 一个完整周期（0→120km/h→0），让 60s sparkline 装 5 个完整波"""
+        # 周期 240 ticks（12s @ 50ms）
+        phase = (tick % 240) / 240.0
         # 三角波：0→120→0
         if phase < 0.4:
             # 加速 0→120
@@ -111,7 +111,7 @@ class CanSimulator:
         else:
             # 减速 120→0
             self.state["vehicle_speed"] = (1.0 - (phase - 0.7) / 0.3) * 120
-        self.state["vehicle_speed"] += random.uniform(-1.5, 1.5)  # 抖动
+        self.state["vehicle_speed"] += random.uniform(-5, 5)  # 加大抖动让曲线有"呼吸"
         self.state["vehicle_speed"] = max(0, min(260, self.state["vehicle_speed"]))
 
         # 制动
