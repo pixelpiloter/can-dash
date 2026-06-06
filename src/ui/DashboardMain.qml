@@ -244,11 +244,11 @@ ApplicationWindow {
     }
 
     // ─── 底部中央：能量流图 + 历史曲线 + 派生指标 ───
-    // 能量流图（横向压缩，400x95 紧凑布局）
+    // 能量流图（440x180 合理高度，与底部状态栏不重叠）
     EnergyFlowDiagram {
         id: energyFlow
-        x: 80; y: 590
-        width: 420; height: 95
+        x: 80; y: 440
+        width: 440; height: 180
 
         // 通过 Connections 绑定到 displayData
         energyMode:    dashboard.displayData["energy_mode"]   || 0

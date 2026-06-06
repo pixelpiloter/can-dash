@@ -91,12 +91,12 @@ Item {
             ctx.clearRect(0, 0, width, height)
 
             var col  = lit ? root.onColor   : root.offColor
-            var alpha = lit ? 1.0 : 0.55
+            var alpha = lit ? 1.0 : 0.0     // inactive 灯完全透明（只看到背景 indicatorBar）
 
-            // 外圈发光
+            // 外圈发光（仅 active 时）
             if (lit) {
                 var glow = ctx.createRadialGradient(cx, cy, r * 0.7, cx, cy, r * 1.3)
-                glow.addColorStop(0, "rgba(" + _hex(col) + ",0.3)")
+                glow.addColorStop(0, "rgba(" + _hex(col) + ",0.35)")
                 glow.addColorStop(1, "rgba(0,0,0,0)")
                 ctx.beginPath()
                 ctx.arc(cx, cy, r * 1.3, 0, 2 * Math.PI)
@@ -104,31 +104,23 @@ Item {
                 ctx.fill()
             }
 
-            // 金属边框
-            var metalGrad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r)
-            metalGrad.addColorStop(0, "#555555")
-            metalGrad.addColorStop(0.3, "#2a2a2a")
-            metalGrad.addColorStop(0.7, "#1a1a1a")
-            metalGrad.addColorStop(1, "#404040")
-            ctx.beginPath()
-            ctx.arc(cx, cy, r, 0, 2 * Math.PI)
-            ctx.fillStyle = metalGrad
-            ctx.fill()
-
-            // 镜头玻璃
-            var lensGrad = ctx.createRadialGradient(cx - r*0.15, cy - r*0.15, 0, cx, cy, r * 0.88)
             if (lit) {
-                lensGrad.addColorStop(0, "rgba(" + _hex(col) + "," + Math.min(1,alpha+0.3) + ")")
-                lensGrad.addColorStop(0.6, "rgba(" + _hex(col) + "," + alpha + ")")
-                lensGrad.addColorStop(1, "rgba(" + _hex(col) + "," + Math.max(0.3,alpha-0.2) + ")")
+                // ─── active: 实心彩色圆 + 发光（取代原金属边框+镜头玻璃）───
+                ctx.beginPath()
+                ctx.arc(cx, cy, r * 0.92, 0, 2 * Math.PI)
+                var fillGrad = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.2, 0, cx, cy, r * 0.92)
+                fillGrad.addColorStop(0, "rgba(" + _hex(col) + ",0.95)")
+                fillGrad.addColorStop(1, "rgba(" + _hex(col) + ",0.45)")
+                ctx.fillStyle = fillGrad
+                ctx.fill()
             } else {
-                lensGrad.addColorStop(0, "rgba(50,50,50,0.8)")
-                lensGrad.addColorStop(1, "rgba(20,20,20,0.8)")
+                // ─── inactive: 极简描边（直径 -1px 细线 + 4px 圆点）───
+                ctx.strokeStyle = "rgba(80,80,80,0.55)"
+                ctx.lineWidth = 1
+                ctx.beginPath()
+                ctx.arc(cx, cy, r * 0.78, 0, 2 * Math.PI)
+                ctx.stroke()
             }
-            ctx.beginPath()
-            ctx.arc(cx, cy, r * 0.88, 0, 2 * Math.PI)
-            ctx.fillStyle = lensGrad
-            ctx.fill()
 
             // 画符号
             ctx.fillStyle = lit ? "rgba(255,255,255,0.95)" : "rgba(120,120,120,0.7)"
