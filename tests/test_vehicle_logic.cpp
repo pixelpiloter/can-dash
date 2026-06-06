@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <cmath>
+#include <limits>
 #include <vector>
 #include "../src/layer2/vehicle_logic.h"
 #include "../src/layer2/event_bus.h"
@@ -161,6 +163,92 @@ int main() {
     logic3.tick(logic3_start_ms + 600);  // > 500ms, 应该走 auto_done
     assert(logic3.getPrechargeState() == PRECHARGE_DONE);
     printf("  ✓ init(nullptr) 行为正确 (走 yaml 默认配置)\n");
+
+    // ─── 测试12：边界检查 — SOC NaN 不掩盖低电量告警 ───
+    printf("\n[测试12] 边界检查: SOC NaN/Inf 被拒绝, 不掩盖低电量告警\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        // 先把 SOC 设到低电量 (< 15)
+        for (int i = 0; i < 5; i++) vl.onSocUpdate(8.0f);
+        assert(vl.isSocLow());
+        assert(vl.getSmoothedSoc() > 7.9f && vl.getSmoothedSoc() < 8.1f);
+        // 注入 NaN — 期望: 拒绝更新, m_soc 保持 8.0, 告警继续触发
+        const float saved_soc = vl.getSmoothedSoc();
+        vl.onSocUpdate(std::nanf(""));
+        assert(vl.getSmoothedSoc() == saved_soc);  // 平滑值未变
+        assert(vl.isSocLow());  // 告警仍触发 (关键!)
+        // 注入 +Inf
+        vl.onSocUpdate(std::numeric_limits<float>::infinity());
+        assert(vl.getSmoothedSoc() == saved_soc);
+        assert(vl.isSocLow());
+        // 注入 -Inf
+        vl.onSocUpdate(-std::numeric_limits<float>::infinity());
+        assert(vl.getSmoothedSoc() == saved_soc);
+        assert(vl.isSocLow());
+    }
+    printf("  ✓ NaN/+Inf/-Inf 都不污染 m_soc, 低电量告警不被掩盖\n");
+
+    // ─── 测试13：边界检查 — SOC 越界钳到 [0, 100] ───
+    printf("\n[测试13] 边界检查: SOC 越界被钳位到 [0, 100]\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        // 先用正常值填充窗口, 让初始 m_soc 稳定
+        for (int i = 0; i < 5; i++) vl.onSocUpdate(50.0f);
+        // 越界 150 → 应被钳到 100
+        vl.onSocUpdate(150.0f);
+        assert(vl.getSmoothedSoc() <= 100.0f);
+        assert(!vl.isSocCritical());
+        // 越界 -10 → 应被钳到 0
+        vl.onSocUpdate(-10.0f);
+        // 多次 -10 后, 平滑窗口全是 0 → smoothed=0, 但 isSocLow 仍看 m_soc(0)
+        assert(vl.isSocCritical());  // 0 < 5
+    }
+    printf("  ✓ SOC > 100 钳到 100, SOC < 0 钳到 0, 告警阈值仍正确\n");
+
+    // ─── 测试14：边界检查 — 车速 NaN/Inf/负值/超速 ───
+    printf("\n[测试14] 边界检查: 车速 NaN/负值/超速 都被安全处理\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);  // speed_max=260
+        // NaN → speed=0, valid=false
+        vl.onSpeedUpdate(std::nanf(""), true);
+        assert(vl.getSpeed() == 0.0f);
+        assert(!vl.isSpeedValid());
+        // +Inf → 同 NaN 处理
+        vl.onSpeedUpdate(std::numeric_limits<float>::infinity(), true);
+        assert(vl.getSpeed() == 0.0f);
+        assert(!vl.isSpeedValid());
+        // 负值 → 钳到 0
+        vl.onSpeedUpdate(-5.0f, true);
+        assert(vl.getSpeed() == 0.0f);
+        assert(vl.isSpeedValid());  // 负值钳到 0, valid 保持原值
+        // 超速 → 钳到 speed_max
+        vl.onSpeedUpdate(9999.0f, true);
+        assert(vl.getSpeed() == config.speed_max);
+        assert(vl.isSpeedValid());
+    }
+    printf("  ✓ NaN/±Inf 拒绝 (valid=false, speed=0), 负值钳到 0, 超速钳到 speed_max\n");
+
+    // ─── 测试15：边界检查 — 正常值不受影响 ───
+    printf("\n[测试15] 边界检查: 正常输入 (0~speed_max) 行为不变\n");
+    {
+        VehicleLogic vl;
+        vl.init(&config);
+        vl.onSpeedUpdate(60.0f, true);
+        assert(vl.getSpeed() == 60.0f);
+        assert(vl.isSpeedValid());
+        vl.onSpeedUpdate(0.0f, true);
+        assert(vl.getSpeed() == 0.0f);
+        // 边界值: 正好等于 speed_max 不应被钳
+        vl.onSpeedUpdate(config.speed_max, true);
+        assert(vl.getSpeed() == config.speed_max);
+        // 边界值: 正好 0 不应被钳
+        vl.onSpeedUpdate(0.0f, true);
+        assert(vl.getSpeed() == 0.0f);
+    }
+    printf("  ✓ 正常车速 (含边界) 不受影响\n");
 
     printf("\n所有测试通过。\n");
     return 0;

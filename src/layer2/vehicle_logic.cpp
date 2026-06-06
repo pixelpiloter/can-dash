@@ -38,6 +38,25 @@ void VehicleLogic::init(const VehicleConfigDef* config) {
 }
 
 void VehicleLogic::onSpeedUpdate(float speed, bool valid) {
+    // 边界检查: NaN/Inf 直接拒绝, valid=false 强制兜底为 0
+    // (避免下游 isReadyGo 比较 NaN 触发 UB 行为: NaN < x 永远 false)
+    if (!std::isfinite(speed)) {
+        valid = false;
+        speed = 0.0f;
+        Event e_bad{/*key=*/"vehicle_speed_invalid", /*value=*/0.0f, /*prev_value=*/0.0f,
+                   /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
+        EventBus::instance().publish(std::move(e_bad));
+    } else if (speed < 0.0f) {
+        // 负车速物理上不存在 → 钳到 0
+        speed = 0.0f;
+    } else if (speed > m_config.speed_max) {
+        // 上限钳位 (例如速度 1000 km/h 显然传感器异常)
+        speed = m_config.speed_max;
+        Event e_clip{/*key=*/"vehicle_speed_clipped", /*value=*/speed, /*prev_value=*/0.0f,
+                    /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
+        EventBus::instance().publish(std::move(e_clip));
+    }
+
     m_speed = speed;
     m_speedValid = valid;
     m_lastSpeedUpdateMs = candash::now_monotonic_ms();
@@ -50,6 +69,20 @@ void VehicleLogic::onSpeedUpdate(float speed, bool valid) {
 }
 
 void VehicleLogic::onSocUpdate(float soc) {
+    // 边界检查: NaN/Inf → 拒绝更新, 保留上次的 m_soc (避免 NaN 掩盖低电量告警)
+    // SOC 物理上限定 [0, 100]%, 越界视为传感器异常, 钳到边界
+    if (!std::isfinite(soc)) {
+        Event e_bad{/*key=*/"bat_soc_invalid", /*value=*/m_soc, /*prev_value=*/m_soc,
+                   /*timestamp_ms=*/candash::now_monotonic_ms(), /*source=*/this};
+        EventBus::instance().publish(std::move(e_bad));
+        return;  // 不更新 m_socHistory, 也不更新 m_soc
+    }
+    if (soc < 0.0f) {
+        soc = 0.0f;
+    } else if (soc > 100.0f) {
+        soc = 100.0f;
+    }
+
     // 滑动平均平滑
     m_socHistory[m_socHistoryIndex] = soc;
     m_socHistoryIndex = (m_socHistoryIndex + 1) % m_config.soc_smoothing_window;
