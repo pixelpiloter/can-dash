@@ -5,6 +5,7 @@
 #include "layer1/shm/shm_display.h"
 #include "layer2/time_util.h"
 #include "generated/limp_home_def.h"  // PR 44: LIMP_HOME_CONFIG (yaml→C 生成的跛行模式配置)
+#include "file_logger.h"
 
 #include <QDebug>
 #include <cstring>
@@ -37,10 +38,14 @@ bool ShmDataSource::start() {
     // 打开共享内存
     if (shm_display_open() < 0) {
         qWarning() << "[ShmDataSource] Failed to open shm at" << SHM_DISPLAY_PATH;
+        FileLogger::instance().error(QStringLiteral("ShmDataSource"),
+            QStringLiteral("Failed to open shm at %1").arg(SHM_DISPLAY_PATH));
         m_snapshot.health = HEALTH_DISCONNECTED;
         if (m_healthCb) m_healthCb(HEALTH_DISCONNECTED);
     } else {
         qDebug() << "[ShmDataSource] Opened shm at" << SHM_DISPLAY_PATH;
+        FileLogger::instance().info(QStringLiteral("ShmDataSource"),
+            QStringLiteral("Opened shm at %1").arg(SHM_DISPLAY_PATH));
     }
 
     // ─── 启动时初始化 ThemeManager 时间基线 (PR 16 PR-B 跟进 PR 15) ───
@@ -71,6 +76,8 @@ bool ShmDataSource::start() {
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &ShmDataSource::onTick);
     m_timer->start(m_tickIntervalMs);
+    FileLogger::instance().info(QStringLiteral("ShmDataSource"),
+        QStringLiteral("Timer started, interval=%1ms").arg(m_tickIntervalMs));
 
     m_running = true;
     return true;
@@ -111,6 +118,8 @@ void ShmDataSource::onTick() {
         m_snapshot.health = new_health;
         m_lastHealth = new_health;
         if (m_healthCb) m_healthCb(new_health);
+        FileLogger::instance().info(QStringLiteral("ShmDataSource"),
+            QStringLiteral("Health changed: %1").arg(new_health));
     }
 
     // 离线时不推送数据快照（防 stale UI）
@@ -133,6 +142,8 @@ void ShmDataSource::onTick() {
         if (rc != last_err) {
             qWarning() << "[ShmDataSource] shm_display_read failed:" << rc
                        << "(-2=ABI, -3=checksum)";
+            FileLogger::instance().warn(QStringLiteral("ShmDataSource"),
+                QStringLiteral("shm_display_read failed: %1 (-2=ABI, -3=checksum)").arg(rc));
             last_err = rc;
         }
         return;

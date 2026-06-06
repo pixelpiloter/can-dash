@@ -202,8 +202,14 @@ public:
     Q_INVOKABLE void setChimeEnabled(bool enabled);    // 全局静音开关
     Q_INVOKABLE void setChimeVolume(int pct);          // 0-100, 自动 clamp
     Q_INVOKABLE void resetChime();
-    // 自检 (PR 17): 透传到 ShmDataSource.m_self_test, 下次 16ms tick 自动反映到 QML
+    // 自检 (PR 17): 透传到 ShmDataSource.m_self_test
     Q_INVOKABLE void resetSelfTest();
+
+    // 日志 (REQ-LOG-002): 透传到 FileLogger + QmlLogger::addLog
+    Q_INVOKABLE void logInfo(const QString& source, const QString& message);
+    Q_INVOKABLE void logWarn(const QString& source, const QString& message);
+    Q_INVOKABLE void logError(const QString& source, const QString& message);
+    Q_INVOKABLE void logDebug(const QString& source, const QString& message);
 
 signals:
     void displayDataChanged();

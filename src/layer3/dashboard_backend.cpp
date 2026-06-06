@@ -5,6 +5,8 @@
 #include "shm_data_source.h"
 #include "qt_data_binder.h"
 #include "layer2/language_manager.h"  // TRANSLATIONS, TRANSLATION_COUNT
+#include "file_logger.h"
+#include "qml_logger_bridge.h"
 
 #include <QDebug>
 #include <QVariant>
@@ -16,6 +18,11 @@ DashboardBackend::DashboardBackend(QObject* parent) : QObject(parent) {}
 DashboardBackend::~DashboardBackend() = default;
 
 void DashboardBackend::init() {
+    // 安装 FileLogger 的 qInstallMessageHandler
+    FileLogger::instance().installMessageHandler();
+    FileLogger::instance().info(QStringLiteral("QmlDataBinder"),
+                                QStringLiteral("QmlDataBinder started"));
+
     // 默认：ShmDataSource + QtDataBinder
     auto source = std::make_unique<ShmDataSource>();
     auto binder = std::make_unique<QtDataBinder>();
@@ -226,3 +233,21 @@ void DashboardBackend::setIndicator(const QString& widget_id, bool on, bool flas
 }
 QString DashboardBackend::tr(const QString& key) const { return m_qtBinder ? m_qtBinder->tr(key) : key; }
 void DashboardBackend::setLanguage(const QString& lang) { if (m_qtBinder) m_qtBinder->setLanguage(lang); }
+
+// 日志 (REQ-LOG-002): 写 FileLogger + 转发 QmlLogger
+void DashboardBackend::logInfo(const QString& source, const QString& message) {
+    FileLogger::instance().info(source, message);
+    QmlLoggerBridge::instance().forwardLog(1, source, message);
+}
+void DashboardBackend::logWarn(const QString& source, const QString& message) {
+    FileLogger::instance().warn(source, message);
+    QmlLoggerBridge::instance().forwardLog(2, source, message);
+}
+void DashboardBackend::logError(const QString& source, const QString& message) {
+    FileLogger::instance().error(source, message);
+    QmlLoggerBridge::instance().forwardLog(3, source, message);
+}
+void DashboardBackend::logDebug(const QString& source, const QString& message) {
+    FileLogger::instance().debug(source, message);
+    QmlLoggerBridge::instance().forwardLog(0, source, message);
+}

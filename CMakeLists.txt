@@ -52,6 +52,7 @@ endif()
 find_package(Qt6 QUIET COMPONENTS Core)
 if(Qt6_FOUND)
     find_package(Qt6 QUIET COMPONENTS Qml Quick Svg)
+    find_package(Qt6 QUIET COMPONENTS Concurrent)  # FileLogger (PR-LOG) 用 QtConcurrent
 endif()
 set(QT6_FOUND ${Qt6_FOUND})
 
@@ -112,7 +113,7 @@ if(Qt6_FOUND)
         ${LAYER2_DIR}
         ${LAYER3_DIR}
     )
-    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg rt)
+    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg Qt6::Concurrent rt)
 else()
     message(STATUS "Qt6 not found — skipping can-dash UI binary (UT only)")
 endif()
@@ -306,8 +307,10 @@ if(Qt6_FOUND)
     # PR 44 修复: ShmDataSource 包含所有 L2 manager (theme/warning/view/settings/chime/self_test/limp_home + trip)
     #            + 全部 GENERATED_SOURCES (signal_table 提供 SIGNAL_TABLE 给 self_test)
     add_executable(test_shm_data_source tests/test_shm_data_source.cpp
-        ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/file_logger.cpp
+        ${LAYER3_DIR}/qml_logger_bridge.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER2_DIR}/time_util.cpp
         ${LAYER2_DIR}/trip_computer.cpp
         ${LAYER2_DIR}/theme_manager.cpp
@@ -336,10 +339,12 @@ if(Qt6_FOUND)
     # DashboardBackend 胶水（Qt + Layer 1 shm + Layer 2 language + 所有 Layer 3）
     # PR 44 修复: shm_data_source 引用全部 L2 manager, test_dashboard_backend 也要 link 它们
     add_executable(test_dashboard_backend tests/test_dashboard_backend.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/file_logger.cpp
+        ${LAYER3_DIR}/qml_logger_bridge.cpp
+        ${LAYER3_DIR}/qt_data_binder.cpp
         ${LAYER3_DIR}/dashboard_backend.cpp
         ${LAYER3_DIR}/shm_data_source.cpp
-        ${LAYER3_DIR}/qt_data_binder.cpp
-        ${LAYER1_DIR}/shm/shm_display.cpp
         ${LAYER2_DIR}/time_util.cpp
         ${LAYER2_DIR}/language_manager.cpp
         ${LAYER2_DIR}/trip_computer.cpp
@@ -360,8 +365,10 @@ if(Qt6_FOUND)
     # ChimeManager 数据流集成 (PR 14): ShmDataSource::onTick 桥接 warning→chime
     # PR 44 修复: shm_data_source 引用全部 L2 manager, 跟 test_shm_data_source 同 shape
     add_executable(test_chime_data_flow tests/test_chime_data_flow.cpp
-        ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/file_logger.cpp
+        ${LAYER3_DIR}/qml_logger_bridge.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER2_DIR}/time_util.cpp
         ${LAYER2_DIR}/trip_computer.cpp
         ${LAYER2_DIR}/theme_manager.cpp
@@ -381,10 +388,12 @@ if(Qt6_FOUND)
     # SelfTestRuntime 数据流集成 (PR 17): ShmDataSource::onTick 桥接 signal→self_test
     # PR 44 修复: shm_data_source 引用全部 L2 manager, 跟 test_shm_data_source 同 shape
     add_executable(test_self_test_data_flow tests/test_self_test_data_flow.cpp
-        ${LAYER3_DIR}/shm_data_source.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/file_logger.cpp
+        ${LAYER3_DIR}/qml_logger_bridge.cpp
         ${LAYER3_DIR}/qt_data_binder.cpp
         ${LAYER3_DIR}/dashboard_backend.cpp
-        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/shm_data_source.cpp
         ${LAYER2_DIR}/time_util.cpp
         ${LAYER2_DIR}/language_manager.cpp
         ${LAYER2_DIR}/trip_computer.cpp
