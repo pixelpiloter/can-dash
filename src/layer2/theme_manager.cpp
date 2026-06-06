@@ -28,8 +28,8 @@ const ThemeColors ThemeManager::kNightColors = {
     .background = 0xFF1A1A1AU,  // 近黑
     .foreground = 0xFFE8E8E8U,  // 浅灰
     .accent     = 0xFF00E5FFU,  // 青色
-    .warning    = 0xFFFFB000U,  // 琥珀 (一致)
-    .critical   = 0xFFFF3344U,  // 红 (略亮, 暗背景下更醒目)
+    .warning    = 0xFFFFB000U,  // 琥珀 (与 DAY 一致, 避免色觉混淆)
+    .critical   = 0xFFDD2222U,  // 红 (与 DAY 一致, 避免色觉混淆)
 };
 
 ThemeManager::ThemeManager() {
