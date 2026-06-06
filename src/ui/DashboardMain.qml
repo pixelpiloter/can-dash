@@ -63,13 +63,7 @@ ApplicationWindow {
     // ─── 背景 ───
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: "#0a0a0a" }
-            GradientStop { position: 0.3; color: "#111116" }
-            GradientStop { position: 0.7; color: "#111116" }
-            GradientStop { position: 1.0; color: "#0a0a0a" }
-        }
+        color: "#050810"   // 深空蓝黑，比纯黑更有质感
     }
 
     // ─── 顶部指示灯条（高度 80，包含语言切换在右侧）───

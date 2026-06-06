@@ -236,6 +236,80 @@ Item {
         }
     }
 
+    // ─── 顶层：外环彩色渐变条（独立 Canvas，z-order 最上层）───
+    // 画在表盘外圈位置（r=outerR-2），覆盖原 #0d0d0d 外圈，让 conic gradient 当新外圈
+    Canvas {
+        id: outerRingCanvas
+        x: -20
+        y: -20
+        width: parent.width + 40
+        height: parent.height + 40
+        antialiasing: true
+        smooth: true
+
+        Component.onCompleted: requestPaint()
+
+        onPaint: {
+            var ctx = getContext("2d")
+            var w = width
+            var h = height
+            var cx = w / 2
+            var cy = h / 2
+            // 用 parent 的 size 算 outerR（不要用 w/h，因为画布扩大了）
+            var outerR = Math.min(parent.width, parent.height) / 2 - 4
+            var startAngle = root.startAngleDeg * Math.PI / 180
+            var endAngle = root.endAngleDeg * Math.PI / 180
+            var angleRange = endAngle - startAngle
+            var gradR = outerR - 2   // 画在表盘外圈上，覆盖原 #0d0d0d
+
+            ctx.clearRect(0, 0, w, h)
+
+            var gradColors = ['#00AAFF', '#00FF88', '#FFAA00', '#FF2200']
+            var gradSegs = 60
+            for (var g = 0; g < gradSegs; g++) {
+                var gt1 = g / gradSegs
+                var gt2 = (g + 1) / gradSegs
+                var ga1 = startAngle + gt1 * angleRange
+                var ga2 = startAngle + gt2 * angleRange
+                // 4 段颜色之间插值
+                var segT = gt1 * 4
+                var idx = Math.floor(segT)
+                var frac = segT - idx
+                if (idx >= 4) { idx = 3; frac = 1 }
+                var c1 = gradColors[idx]
+                var c2 = gradColors[Math.min(idx + 1, 3)]
+                var r1 = parseInt(c1.substr(1, 2), 16)
+                var gn1 = parseInt(c1.substr(3, 2), 16)
+                var b1 = parseInt(c1.substr(5, 2), 16)
+                var r2 = parseInt(c2.substr(1, 2), 16)
+                var gn2 = parseInt(c2.substr(3, 2), 16)
+                var b2 = parseInt(c2.substr(5, 2), 16)
+                var rr = Math.round(r1 + (r2 - r1) * frac)
+                var gg = Math.round(gn1 + (gn2 - gn1) * frac)
+                var bb = Math.round(b1 + (b2 - b1) * frac)
+                var col = 'rgb(' + rr + ',' + gg + ',' + bb + ')'
+                // 发光层（先画半透明粗线作 glow）
+                ctx.save()
+                ctx.shadowColor = col
+                ctx.shadowBlur = 10
+                ctx.beginPath()
+                ctx.arc(cx, cy, gradR, ga1, ga2 + 0.004)
+                ctx.strokeStyle = col
+                ctx.lineWidth = 10
+                ctx.lineCap = "butt"
+                ctx.stroke()
+                ctx.restore()
+                // 主体（细亮线）
+                ctx.beginPath()
+                ctx.arc(cx, cy, gradR, ga1, ga2 + 0.004)
+                ctx.strokeStyle = col
+                ctx.lineWidth = 4
+                ctx.lineCap = "butt"
+                ctx.stroke()
+            }
+        }
+    }
+
     // ─── 顶层：数值 + 单位（独立 Text，value 变化时更新）───
     // 指针底部在 cy+5，文字放在 cy+outerR*0.52 以下，避让指针
     Column {
