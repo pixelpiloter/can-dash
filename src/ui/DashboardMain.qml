@@ -11,6 +11,15 @@ ApplicationWindow {
     visible: true
     title: dashboard.tr("app.title")
     color: "#000000"
+    focus: true
+
+    // ─── F12 切换日志面板 ───
+    Keys.onPressed: {
+        if (event.key === Qt.Key_F12) {
+            logPanel.visible_ = !logPanel.visible_
+            event.accepted = true
+        }
+    }
 
     // ─── 平滑滤波状态 ───
     property real rawSpeed: 0
@@ -95,13 +104,28 @@ ApplicationWindow {
             IndicatorLight { id: seatbeltLight;     width: 55; height: 55; symbol: "seatbelt";      on: dashboard.indicatorOn("seatbelt_warning");   flash: true;  flashHz: 2 }
         }
 
-        // 右侧语言切换（在 indicatorBar 内，z=10 确保在最上层）
+        // 右侧工具栏（在 indicatorBar 内，z=10 确保在最上层）
         Row {
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 20
             spacing: 6
             z: 10
+
+            // 📋 日志面板按钮
+            Rectangle {
+                width: 34; height: 34; radius: 6
+                color: logPanel.visible_ ? "#FF660000" : "#00000000"
+                border.color: logPanel.visible_ ? "#FFAA00" : "#444444"
+                border.width: 1
+                Text {
+                    anchors.centerIn: parent
+                    text: "📋"
+                    font.pixelSize: 16
+                }
+                MouseArea { anchors.fill: parent; onClicked: logPanel.visible_ = !logPanel.visible_ }
+            }
+
             Rectangle {
                 width: 50; height: 34; radius: 6
                 color: dashboard.currentLanguage === "zh_CN" ? "#FF660000" : "#00000000"
@@ -310,6 +334,14 @@ ApplicationWindow {
         width: 320; height: 20
     }
 
+    // ─── 日志面板 (z=15, 低于AlarmBanner) ───
+    QmlLogger {
+        id: qmlLogger
+    }
+    LogPanel {
+        id: logPanel
+    }
+
     // ─── 报警横幅（z=9999，最高层）───
     AlarmBanner {
         id: alarmBanner
@@ -377,6 +409,19 @@ ApplicationWindow {
                 font.pixelSize: 13
                 font.weight: Font.Bold
                 font.family: "Roboto Mono, monospace"
+            }
+
+            // 📋 日志面板切换按钮
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: logPanel.visible_ ? "📋" : "📄"
+                color: logPanel.visible_ ? "#88CCFF" : "#556677"
+                font.pixelSize: 16
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: logPanel.visible_ = !logPanel.visible_
+                    cursorShape: Qt.PointingHandCursor
+                }
             }
         }
 
