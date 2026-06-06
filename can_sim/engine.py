@@ -95,7 +95,9 @@ class CanSimulator:
     def send_frame(self, sock: socket.socket, can_id: int, data: bytes):
         # Unix Socket 格式：[can_id(4bytes LE)][dlc(1byte)][data(variable)]
         msg = struct.pack("<IB", can_id, len(data)) + data
-        sock.send(msg)
+        # sendall 替代 send 避免 partial send 错位 (CAN frame 长度固定, 一次 send 可能
+        # 只发出部分, 后续帧拼接在 rx_buf_ 里就乱了. sendall 阻塞到完整发送.)
+        sock.sendall(msg)
 
     def update_driving(self, tick: int):
         """驾驶循环：每 12s 一个完整周期（0→120km/h→0），让 60s sparkline 装 5 个完整波"""
