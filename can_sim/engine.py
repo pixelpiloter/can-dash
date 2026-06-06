@@ -4,13 +4,15 @@ CAN 仿真引擎
 通过 Unix Socket 向 can-dash 发送模拟 CAN 帧
 
 Usage:
-    python can_sim/engine.py [--scenario driving|charging|fault|idle] [--duration 30]
+    python can_sim/engine.py [--scenario driving|charging|fault|idle|highway|low_battery] [--duration 30]
 
 Scenarios:
-    driving   - 正常驾驶循环（默认）：加速 → 巡航 → 减速
-    charging  - 充电场景：bat_curr 负、charge_status=1、vehicle_speed=0
-    fault     - 故障注入：触发电机超温 + 发动机故障 + 低胎压
-    idle      - 静止：所有信号保持初始值
+    driving      - 正常驾驶循环（默认）：加速 → 巡航 → 减速
+    charging     - 充电场景：bat_curr 负、charge_status=1、vehicle_speed=0
+    fault        - 故障注入：触发电机超温 + 发动机故障 + 低胎压
+    idle         - 静止：所有信号保持初始值
+    highway      - 高速巡航：持续 120-130km/h, energy_mode=2 (engine boost), 高功耗
+    low_battery  - 低电量：SOC<10% 触发 bat_soc_low + soc_critical_low 报警, 跛行降速
 """
 
 import argparse
@@ -70,6 +72,25 @@ def make_scenario(name: str) -> Scenario:
     elif name == "idle":
         # 全部保持初始值
         pass
+    elif name == "highway":
+        # 高速巡航：起始 SOC 低一些 (40%), 模拟长途行驶
+        s.initial.update({
+            "vehicle_speed": 125,
+            "bat_soc": 40,  # 长途行驶
+            "energy_mode": 2,  # engine boost
+            "brake": 0,
+        })
+    elif name == "low_battery":
+        # 低电量场景：SOC < 10% 触发 bat_soc_low 和 soc_critical_low 报警
+        # engine_rpm=0 模拟跛行降速 (limp home)
+        s.initial.update({
+            "vehicle_speed": 0,  # 跛行模式先静止
+            "bat_soc": 6,        # < 5% 触发 soc_critical_low, < 10% 触发 bat_soc_low
+            "bat_volt": 320,     # 低 SOC 对应低电压
+            "energy_mode": 0,    # EV 模式
+            "brake": 1,          # 跛行时刹车
+            "engine_rpm": 0,
+        })
     return s
 
 
@@ -194,6 +215,94 @@ class CanSimulator:
         """静止：所有信号保持"""
         pass  # self.state 已经初始化，不动
 
+    def update_highway(self, tick: int):
+        """高速巡航：维持 120-130km/h, 高能耗, SOC 持续下降
+        周期 600 ticks（30s @ 50ms），长周期保证 SOC 慢慢下降
+        模拟长途高速: 持续 engine boost, 高 motor_rpm, 高 bat_curr (放电)
+        """
+        # 长周期小幅波动（120-130）
+        phase = (tick % 600) / 600.0
+        # 慢速正弦波动
+        self.state["vehicle_speed"] = 125 + math.sin(phase * 2 * math.pi) * 5
+        self.state["vehicle_speed"] += random.uniform(-1, 1)  # 小幅抖动
+        self.state["vehicle_speed"] = max(0, min(260, self.state["vehicle_speed"]))
+
+        # 不踩刹车（巡航）
+        self.state["brake"] = 0
+
+        # 电机高转速、高温
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        self.state["motor_temp"] = 75 + (self.state["vehicle_speed"] / 130) * 30
+        self.state["motor_temp"] += random.uniform(-0.5, 0.5)
+        self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
+
+        # 电池高放电（bat_curr 负数 = 放电）
+        self.state["bat_volt"] += random.uniform(-0.3, 0.3)
+        self.state["bat_volt"] = max(310, min(370, self.state["bat_volt"]))
+        self.state["bat_curr"] = -120 + (self.state["vehicle_speed"] / 130) * -80
+        self.state["bat_curr"] += random.uniform(-5, 5)
+
+        # SOC 缓慢下降 (长途旅行) - 每 30s 减 1%
+        if tick % 600 == 0:
+            self.state["bat_soc"] = max(0, self.state["bat_soc"] - 1)
+
+        # 能量模式：高速时 engine boost
+        self.state["energy_mode"] = 2
+
+        # 燃油消耗（持续 engine boost）
+        self.state["fuel_level"] = max(0, self.state["fuel_level"] - 0.005)
+        self.state["engine_rpm"] = int(self.state["vehicle_speed"] * 30)
+
+        # 续航计算
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = max(0, int(self.state["fuel_level"] * 8))
+
+    def update_low_battery(self, tick: int):
+        """低电量场景：SOC=6% 触发 bat_soc_low + soc_critical_low 报警
+        模拟跛行模式 (limp home): 车速限制在 30km/h 以下
+        """
+        # 跛行模式：低 SOC 时车速限制
+        # 用缓慢正弦模拟跛行中偶发小幅加速
+        phase = (tick % 200) / 200.0
+        if phase < 0.3:
+            # 短暂尝试加速到 30km/h
+            self.state["vehicle_speed"] = (phase / 0.3) * 30
+        elif phase < 0.7:
+            # 维持 30km/h
+            self.state["vehicle_speed"] = 30
+        else:
+            # 减速到 0
+            self.state["vehicle_speed"] = (1.0 - (phase - 0.7) / 0.3) * 30
+        self.state["vehicle_speed"] = max(0, min(30, self.state["vehicle_speed"]))
+        self.state["vehicle_speed"] += random.uniform(-0.5, 0.5)
+        self.state["vehicle_speed"] = max(0, min(30, self.state["vehicle_speed"]))
+
+        # 刹车 / 油门
+        self.state["brake"] = 1 if self.state["vehicle_speed"] < 5 else 0
+
+        # 电机低转速
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        self.state["motor_temp"] = 40 + (self.state["vehicle_speed"] / 30) * 10
+        self.state["motor_temp"] += random.uniform(-0.5, 0.5)
+
+        # 电池低电压、小电流
+        self.state["bat_volt"] = 320 + (self.state["bat_soc"] - 5) * 0.5
+        self.state["bat_volt"] += random.uniform(-0.3, 0.3)
+        self.state["bat_curr"] = -20 + (self.state["vehicle_speed"] / 30) * -10
+        self.state["bat_curr"] += random.uniform(-2, 2)
+
+        # SOC 维持在 6% 附近，偶尔抖动
+        # 实际上 SOC 6% 已经很危险, 模拟不再继续充电
+        if tick % 1000 == 0:
+            self.state["bat_soc"] = max(0, self.state["bat_soc"] - 1)
+
+        # 能量模式：低 SOC 时强制 EV
+        self.state["energy_mode"] = 0
+
+        # 续航计算
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
+
     def update_state(self, tick: int):
         """根据 scenario 名字调用对应的 update 方法"""
         if self.scenario.name == "driving":
@@ -204,6 +313,10 @@ class CanSimulator:
             self.update_fault(tick)
         elif self.scenario.name == "idle":
             self.update_idle(tick)
+        elif self.scenario.name == "highway":
+            self.update_highway(tick)
+        elif self.scenario.name == "low_battery":
+            self.update_low_battery(tick)
         else:
             self.update_driving(tick)  # default
 
@@ -316,7 +429,7 @@ class CanSimulator:
 def main():
     parser = argparse.ArgumentParser(description="CAN 仿真引擎")
     parser.add_argument("--scenario", default="driving",
-                        choices=["driving", "charging", "fault", "idle"],
+                        choices=["driving", "charging", "fault", "idle", "highway", "low_battery"],
                         help="仿真场景 (default: driving)")
     parser.add_argument("--duration", type=int, default=0,
                         help="运行时长（秒），0=无限 (default: 0)")
