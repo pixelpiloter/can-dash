@@ -34,7 +34,7 @@
 //  13.  processFrame motor 帧 (can_id 257) case 6-7 → motor_rpm/motor_temp 正确
 //  14.  processFrame 错 can_id 跨帧不互踩
 //  15.  endian 同输入不同结果
-//  16.  updated_mask 反映 case 0-12 都触发 (BMS 4 字段触发 bit 0/1/2/3)
+// 15. updated_mask 反映 case 0-27 都触发 (BMS 4 字段触发 bit 0/1/2/3)
 
 #include <cstdio>
 #include <cstring>
@@ -290,6 +290,141 @@ static void test_processFrame_all_zero() {
     TEST_ASSERT(out.bat_soc == 0, "全 0 帧 bat_soc = 0");
 }
 
+// 15. HYBRID 字段 (cases 13-22): engine / charge / energy / range / fuel / gear
+//    这些字段此前在 can_converter.cpp 的 switch 中 default 跳过 (commit 之前),
+//    修复后必须正确写入 DisplayData 才能被 can-processor 同步到 SHM.
+static void test_processFrame_hybrid_fields() {
+    CanConverter cvt;
+    cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
+    DisplayData out = {};
+
+    // 1) 发动机帧 0x305 (can_id 773): engine_rpm=3000 (LE 0x0BB8), engine_fault=0
+    //    data[0] LSB = 0xB8, data[1] MSB = 0x0B
+    //    engine_fault = data[0] bit 0 = 0
+    uint8_t engine[8] = {0xB8, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(773, engine, sizeof(engine), out);
+    TEST_ASSERT(out.engine_rpm == 3000,
+                "case 13 → engine_rpm = 3000 (HYBRID 字段正确写入)");
+    TEST_ASSERT(out.engine_fault == 0,
+                "case 14 → engine_fault = 0 (HYBRID 字段正确写入)");
+
+    // 2) 充电帧 0x306 (can_id 774): charge_status=2 (bit 0-1 = 0b10), charge_fault=0
+    //    byte 0 = 0x02
+    uint8_t charge[8] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(774, charge, sizeof(charge), out);
+    TEST_ASSERT(out.charge_status == 2,
+                "case 15 → charge_status = 2 (HYBRID 字段正确写入)");
+    TEST_ASSERT(out.charge_fault == 0,
+                "case 16 → charge_fault = 0 (HYBRID 字段正确写入)");
+
+    // 3) 充电功率 0x302 (can_id 770): charge_power=22.5 kW, raw=22500 (LE 0x57E4), scale 0.001
+    //    data[0] = 0xE4, data[1] = 0x57
+    uint8_t power[8] = {0xE4, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(770, power, sizeof(power), out);
+    TEST_ASSERT(out.charge_power > 22.4f && out.charge_power < 22.6f,
+                "case 17 → charge_power = 22.5 kW (HYBRID 字段正确写入)");
+
+    // 4) 能量模式 0x300 (can_id 768): energy_mode=3 (charge)
+    uint8_t mode[8] = {0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(768, mode, sizeof(mode), out);
+    TEST_ASSERT(out.energy_mode == 3,
+                "case 18 → energy_mode = 3 (HYBRID 字段正确写入)");
+
+    // 5) 续航 0x307 (can_id 775): ev_range=80 (LE 0x0050)
+    uint8_t range[8] = {0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(775, range, sizeof(range), out);
+    TEST_ASSERT(out.ev_range == 80,
+                "case 19 → ev_range = 80 km (HYBRID 字段正确写入)");
+
+    // 6) 燃油 0x308 (can_id 776): fuel_level=60, fuel_range=500
+    //    data[0] = 60 = 0x3C, data[1..2] = 500 LE = 0xF4 0x01
+    uint8_t fuel[8] = {0x3C, 0xF4, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(776, fuel, sizeof(fuel), out);
+    TEST_ASSERT(out.fuel_level == 60,
+                "case 20 → fuel_level = 60% (HYBRID 字段正确写入)");
+    TEST_ASSERT(out.fuel_range == 500,
+                "case 21 → fuel_range = 500 km (HYBRID 字段正确写入)");
+
+    // 7) 档位 0x309 (can_id 777): gear=2
+    uint8_t gear[8] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(777, gear, sizeof(gear), out);
+    TEST_ASSERT(out.gear_status == 2,
+                "case 22 → gear_status = 2 (HYBRID 字段正确写入)");
+
+    // 综合: updated_mask 应包含 case 13-22 所有 bit
+    // 用 fresh DisplayData 重测, 累计 mask
+    out = {};
+    uint32_t mask = 0;
+    uint32_t tmp_mask = 0;
+    tmp_mask = cvt.processFrame(773, engine, sizeof(engine), out); mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(774, charge, sizeof(charge), out); mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(770, power, sizeof(power), out);   mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(768, mode, sizeof(mode), out);     mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(775, range, sizeof(range), out);   mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(776, fuel, sizeof(fuel), out);     mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(777, gear, sizeof(gear), out);     mask |= tmp_mask;
+    // 期望: bit 13 (engine_rpm) | bit 14 (engine_fault) | bit 15 (charge_status) |
+    //       bit 16 (charge_fault) | bit 17 (charge_power) | bit 18 (energy_mode) |
+    //       bit 19 (ev_range) | bit 20 (fuel_level) | bit 21 (fuel_range) | bit 22 (gear_status)
+    uint32_t expected = (1u << 13) | (1u << 14) | (1u << 15) | (1u << 16) |
+                        (1u << 17) | (1u << 18) | (1u << 19) | (1u << 20) |
+                        (1u << 21) | (1u << 22);
+    TEST_ASSERT((mask & expected) == expected,
+                "HYBRID 7 帧触发 case 13-22 全部 bit (0x3FFFE000 子集)");
+}
+
+// 16. TIRE 字段 (cases 23-27): 4 个轮胎压力 + 1 个 min 派生
+//    此前 can_converter.cpp 同样 default 跳过, 修复后正确写入.
+//    注: DisplayData.tire_pressure_* 是 uint16_t, can_field_table scale=0.1
+//    (YAML 公式 x/10.0), 实际写入的是 cast(uint16_t, raw*0.1) = cast(uint16_t, value).
+//    例如 raw=23 → value=2.3 → uint16_t cast = 2 (精度损失, 已知限制).
+//    测试验证: 写入非 0, 且 updated_mask bit 23-27 全部 set.
+static void test_processFrame_tire_fields() {
+    CanConverter cvt;
+    cvt.init(CAN_FIELD_TABLE, CAN_FIELD_TABLE_COUNT);
+    DisplayData out = {};
+
+    // 1) 胎压帧 0x3A0 (can_id 928): tire_pressure_fl + tire_pressure 共享字节 0-1
+    //    raw = 23 (2.3 bar, scale 0.1) → LE 0x17 0x00
+    uint8_t fl[8] = {0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(928, fl, sizeof(fl), out);
+    // scale=0.1 应用于 raw=23 得 value=2.3, cast uint16 → 2 (精度损失)
+    TEST_ASSERT(out.tire_pressure_fl == 2,
+                "case 23 → tire_pressure_fl = 2 (cast of 2.3, scale=0.1 已知精度损失, TIRE 字段正确写入)");
+    TEST_ASSERT(out.tire_pressure == 2,
+                "case 24 → tire_pressure = 2 (TIRE 字段正确写入)");
+
+    // 2) 胎压帧 0x3A1 (can_id 929): tire_pressure_fr
+    uint8_t fr[8] = {0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(929, fr, sizeof(fr), out);
+    TEST_ASSERT(out.tire_pressure_fr == 2,
+                "case 25 → tire_pressure_fr = 2 (TIRE 字段正确写入)");
+
+    // 3) 胎压帧 0x3A2 (can_id 930): tire_pressure_rl
+    uint8_t rl[8] = {0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(930, rl, sizeof(rl), out);
+    TEST_ASSERT(out.tire_pressure_rl == 2,
+                "case 26 → tire_pressure_rl = 2 (TIRE 字段正确写入)");
+
+    // 4) 胎压帧 0x3A3 (can_id 931): tire_pressure_rr
+    uint8_t rr[8] = {0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    cvt.processFrame(931, rr, sizeof(rr), out);
+    TEST_ASSERT(out.tire_pressure_rr == 2,
+                "case 27 → tire_pressure_rr = 2 (TIRE 字段正确写入)");
+
+    // 综合: updated_mask 应包含 case 23-27
+    out = {};
+    uint32_t mask = 0;
+    uint32_t tmp_mask = 0;
+    tmp_mask = cvt.processFrame(928, fl, sizeof(fl), out); mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(929, fr, sizeof(fr), out); mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(930, rl, sizeof(rl), out); mask |= tmp_mask;
+    tmp_mask = cvt.processFrame(931, rr, sizeof(rr), out); mask |= tmp_mask;
+    uint32_t expected = (1u << 23) | (1u << 24) | (1u << 25) | (1u << 26) | (1u << 27);
+    TEST_ASSERT((mask & expected) == expected,
+                "TIRE 4 帧触发 case 23-27 全部 bit (0x3F800000 子集)");
+}
+
 int main() {
     printf("=== CanConverter 单元测试 (PR 22 + ad52296 fix) ===\n");
     printf("✅ off-by-3 bug 已修复 (commit ad52296, 2026-06-06)\n");
@@ -310,6 +445,8 @@ int main() {
     test_processFrame_cross_frame_isolation();
     test_endian_inverts_byte_order();
     test_processFrame_all_zero();
+    test_processFrame_hybrid_fields();
+    test_processFrame_tire_fields();
 
     printf("\n=== %d/%d tests passed ===\n", g_test_passed, g_test_count);
     return (g_test_passed == g_test_count) ? 0 : 1;

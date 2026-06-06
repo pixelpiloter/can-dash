@@ -23,23 +23,40 @@ uint32_t CanConverter::processFrame(uint32_t can_id, const uint8_t* data,
         float value = applyScaleOffset(def, raw);
 
         // 根据字段索引写入 DisplayData
-        // 索引顺序与 can_field_table.cpp 完全一致（PR 60 之后 28 项）
+        // 索引顺序与 can_field_table.cpp 完全一致（28 项）
+        // ⚠️ 严格遵守 skill 顶部 "switch-case 字段索引错位" 章节:
+        //   每个 case 的字段名必须与 CAN_FIELD_TABLE[i].display_key 一致,
+        //   任何 off-by-N 都会让 can-processor 写错 SHM 字段, QML 显示 0.
+        // 严格自检: 28 个 case 必须全部覆盖, 顺序与 can_field_table.cpp 完全一致.
         switch (i) {
             case  0: out.bat_volt = value; break;                       // bat_volt
             case  1: out.bat_curr = value; break;                       // bat_curr
             case  2: out.bat_soc = (uint8_t)value; break;              // bat_soc
-            case  3: out.battery_temp = (uint8_t)value; break;          // battery_temp (was: vehicle_speed 错位)
-            case  4: out.vehicle_speed = value; break;                  // vehicle_speed (was: brake 错位)
-            case  5: out.brake = (uint8_t)value; break;                 // brake (was: motor_rpm 错位)
-            case  6: out.motor_rpm = (int16_t)value; break;             // motor_rpm (was: motor_temp 错位)
-            case  7: out.motor_temp = (uint8_t)value; break;            // motor_temp (was: missing)
+            case  3: out.battery_temp = (int8_t)value; break;           // battery_temp
+            case  4: out.vehicle_speed = value; break;                  // vehicle_speed
+            case  5: out.brake = (uint8_t)value; break;                 // brake
+            case  6: out.motor_rpm = (int16_t)value; break;             // motor_rpm
+            case  7: out.motor_temp = (uint8_t)value; break;            // motor_temp
             case  8: out.driver_occupied = (uint8_t)value; break;       // driver_occupied
             case  9: out.passenger_occupied = (uint8_t)value; break;     // passenger_occupied
             case 10: out.driver_buckled = (uint8_t)value; break;         // driver_buckled
             case 11: out.passenger_buckled = (uint8_t)value; break;      // passenger_buckled
             case 12: out.rear_buckle = (uint8_t)value; break;            // rear_buckle
-            // 13-27 暂未在 DisplayData 暴露（HYBRID/CHARGE/LIMP_HOME/TIRE 字段）
-            // 写到 out 的扩展字段需要 DisplayDataShm 添加；目前安全忽略
+            case 13: out.engine_rpm = (uint16_t)value; break;            // engine_rpm
+            case 14: out.engine_fault = (uint8_t)value; break;           // engine_fault
+            case 15: out.charge_status = (uint8_t)value; break;          // charge_status
+            case 16: out.charge_fault = (uint8_t)value; break;           // charge_fault
+            case 17: out.charge_power = value; break;                    // charge_power
+            case 18: out.energy_mode = (uint8_t)value; break;            // energy_mode
+            case 19: out.ev_range = (uint16_t)value; break;              // ev_range
+            case 20: out.fuel_level = (uint8_t)value; break;             // fuel_level
+            case 21: out.fuel_range = (uint16_t)value; break;            // fuel_range
+            case 22: out.gear_status = (uint8_t)value; break;            // gear_status
+            case 23: out.tire_pressure_fl = (uint16_t)value; break;      // tire_pressure_fl
+            case 24: out.tire_pressure = (uint16_t)value; break;         // tire_pressure (min of 4 wheels, 计算由 C++ 派生)
+            case 25: out.tire_pressure_fr = (uint16_t)value; break;      // tire_pressure_fr
+            case 26: out.tire_pressure_rl = (uint16_t)value; break;      // tire_pressure_rl
+            case 27: out.tire_pressure_rr = (uint16_t)value; break;      // tire_pressure_rr
             default: break;
         }
 

@@ -189,6 +189,11 @@ static void process_can_frame(uint32_t can_id, const uint8_t* data, size_t len) 
                     case 20: value = dd.fuel_level; break;
                     case 21: value = dd.fuel_range; break;
                     case 22: value = dd.gear_status; break;
+                    case 23: value = dd.tire_pressure_fl; break;        // tire_pressure_fl
+                    case 24: value = dd.tire_pressure; break;           // tire_pressure (tire_pressure_low alarm 用)
+                    case 25: value = dd.tire_pressure_fr; break;        // tire_pressure_fr
+                    case 26: value = dd.tire_pressure_rl; break;        // tire_pressure_rl
+                    case 27: value = dd.tire_pressure_rr; break;        // tire_pressure_rr
                     default: break;
                 }
                 g_alarmRuntime->onValueChanged(key, value);
