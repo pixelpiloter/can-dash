@@ -15,8 +15,17 @@ IndicatorRuntime::~IndicatorRuntime() {
 }
 
 void IndicatorRuntime::init(const IndicatorDef* table, int table_count) {
+    // re-init 安全: 先释放旧的 m_states, 避免反复 init 泄漏 (PR-2026-06-06)
+    if (m_states) {
+        delete[] m_states;
+        m_states = nullptr;
+    }
+    m_count = 0;
+
     m_table = table;
     m_count = table_count;
+
+    if (table_count <= 0) return;  // 早返回, 不分配
     m_states = new IndicatorState[table_count]();
 
     for (int i = 0; i < table_count; i++) {

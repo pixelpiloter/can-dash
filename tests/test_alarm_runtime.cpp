@@ -393,6 +393,34 @@ int main() {
         TEST_ASSERT(g_state_change_count == 3, "state_change_count=3 (true, false, true)");
     }
 
+    // ─── Test 16: re-init 内存安全 (反复 init/析构 不泄漏 / 不崩溃) ───
+    // 背景: alarm_runtime.cpp::init() 早期版本 m_states = new[] 但 re-init 时未 delete[] 旧指针,
+    //       导致每次重新 init 泄漏 ~sizeof(AlarmState) * rule_count 字节.
+    // 修复: init() 入口先 delete[] m_states (if not nullptr), 类似 can_signal_monitor 的 re-init 保护.
+    printf("\n[16] re-init 内存安全: 反复 init() 100 次 不崩溃 / 状态正确:\n");
+    {
+        AlarmRuntime rt(cb);
+        // 反复 100 次 init() — 若有泄漏, 长时间跑才会崩; 单元测试中验证:
+        //   (a) 反复 init 后 isActive 仍正常工作
+        //   (b) activeCount 始终 0 (新 init 重置所有状态)
+        for (int i = 0; i < 100; i++) {
+            rt.init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
+                    ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
+            TEST_ASSERT(rt.activeCount() == 0,
+                        "第 N 次 init 后 activeCount==0 (无残留报警状态)");
+            TEST_ASSERT(rt.isActive("bat_overvolt") == false,
+                        "第 N 次 init 后 bat_overvolt==false (重置)");
+        }
+        // 再 init 一次 + 触发一个报警, 确认功能仍正常
+        rt.init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
+                ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
+        rt.onValueChanged("bat_volt", 425.0f);
+        rt.onValueChanged("bat_volt", 430.0f);
+        TEST_ASSERT(rt.isActive("bat_overvolt") == true,
+                    "100 次 re-init 后 仍能正常触发 bat_overvolt");
+    }
+    printf("  ✓ re-init 100 次无崩溃, 状态机仍正常工作 (AddressSanitizer/valgrind 建议跑)\n");
+
     // ─── 汇总 ───
     printf("\n────────────────────────────────────\n");
     printf("通过: %d / %d (%.1f%%)\n", g_test_passed, g_test_count,

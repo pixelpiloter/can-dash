@@ -100,6 +100,37 @@ int main() {
     assert(runtime.activeCount() == 0);
     printf("  ✓ 多次切换稳定\n");
 
+    // ─── 测试9：re-init 内存安全 (反复 init 不泄漏 / 不崩溃) ───
+    // 背景: indicator_runtime.cpp::init() 早期版本 m_states = new[] 但 re-init 时未 delete[] 旧指针,
+    //       反复 init 触发泄漏. 修复后: init 入口先 delete[] 旧 m_states.
+    printf("\n[测试9] re-init 内存安全\n");
+    {
+        IndicatorRuntime rt(cb);
+        // 反复 100 次 init — 每次应正确重置 activeCount / 状态表
+        for (int i = 0; i < 100; i++) {
+            rt.init(table, table_count);
+            assert(rt.activeCount() == 0);  // 新 init 后所有灯应关闭
+            assert(!rt.isOn("bat_warn_light"));
+            assert(!rt.isOn("engine_warn_light"));
+        }
+        // 100 次 re-init 后功能仍正常
+        rt.init(table, table_count);
+        rt.setIndicator("bat_warn_light", true, false, 0.0f);
+        assert(rt.isOn("bat_warn_light"));
+        assert(rt.activeCount() == 1);
+
+        // 替换为更小的表 (1 个指示灯), 旧 m_states 应被释放
+        static const IndicatorDef small_table[] = {
+            {"only_one", "light", "a.png", "a_dim.png", 0, 0, 50, 50, false},
+        };
+        rt.init(small_table, 1);
+        assert(rt.activeCount() == 0);
+        assert(!rt.isOn("bat_warn_light"));  // 旧 widget 不应再存在
+        rt.setIndicator("only_one", true, false, 0.0f);
+        assert(rt.isOn("only_one"));
+    }
+    printf("  ✓ re-init 100 次 + 替换表大小 不崩溃, 状态机仍正常\n");
+
     printf("\n所有测试通过。\n");
     return 0;
 }
