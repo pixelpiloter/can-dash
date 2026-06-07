@@ -18,6 +18,8 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <cmath>
+#include <limits>
 #include "layer2/alarm_runtime.h"
 #include "generated/alarm_rule_def.h"
 
@@ -420,6 +422,53 @@ int main() {
                     "100 次 re-init 后 仍能正常触发 bat_overvolt");
     }
     printf("  ✓ re-init 100 次无崩溃, 状态机仍正常工作 (AddressSanitizer/valgrind 建议跑)\n");
+
+    // ─── Test 17: NaN/Inf 拒绝 (浮点黑洞: 拒绝评估, 不污染状态) ───
+    // (防止 COND_NE (value != threshold) 对 NaN 永远 true 而误触发)
+    printf("\n[17] NaN/Inf 拒绝: onValueChanged(NaN) / onValueChanged(Inf) 不评估任何规则:\n");
+    {
+        AlarmRuntime rt(cb);
+        rt.init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
+                ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
+        resetCounters();
+
+        // 17a) NaN 输入: 不应触发任何回调, 不应进入 tick 累计
+        rt.onValueChanged("bat_volt", std::nanf(""));
+        TEST_ASSERT(g_state_change_count == 0, "NaN 不触发 onAlarmStateChanged");
+        TEST_ASSERT(g_indicator_count == 0, "NaN 不触发 onIndicatorUpdate");
+        TEST_ASSERT(g_alarm_text_count == 0, "NaN 不触发 onAlarmTextUpdate");
+        TEST_ASSERT(rt.activeCount() == 0, "NaN 后 activeCount 仍 0");
+        TEST_ASSERT(rt.isActive("bat_overvolt") == false, "NaN 后 bat_overvolt 未触发");
+
+        // 17b) +Inf / -Inf: 同样拒绝
+        rt.onValueChanged("bat_volt", std::numeric_limits<float>::infinity());
+        rt.onValueChanged("bat_volt", -std::numeric_limits<float>::infinity());
+        TEST_ASSERT(g_state_change_count == 0, "+Inf/-Inf 也不触发 onAlarmStateChanged");
+        TEST_ASSERT(rt.activeCount() == 0, "Inf 序列后 activeCount 仍 0");
+
+        // 17c) NaN 不应消耗 tick_count: 一次正常 425V 后, 再次 425V 应触发
+        // (验证 NaN 没把 tick_count 重置为 0, 也没累加)
+        rt.onValueChanged("bat_volt", 425.0f);  // tick_count=1
+        rt.onValueChanged("bat_volt", std::nanf(""));  // 应跳过, tick_count 仍 1
+        rt.onValueChanged("bat_volt", 425.0f);  // tick_count=2 → 触发
+        TEST_ASSERT(rt.isActive("bat_overvolt") == true,
+                    "NaN 不消耗 tick_count: 1次425V + NaN + 1次425V = 2次 → bat_overvolt 触发");
+        TEST_ASSERT(g_state_change_count == 1, "NaN 中断后仅 1 次 state change (真触发那 1 次)");
+
+        // 17d) 已 active 的报警遇到 NaN: 不应被错误清除
+        // (清空 rt, 重新触发 bat_overvolt 到 active=true, 再灌 NaN, 确认仍 active)
+        AlarmRuntime rt2(cb);
+        rt2.init(ALARM_RULE_TABLE, ALARM_RULE_TABLE_COUNT,
+                 ALARM_ACTION_TABLE, ALARM_ACTION_TABLE_COUNT);
+        resetCounters();
+        rt2.onValueChanged("bat_volt", 425.0f);
+        rt2.onValueChanged("bat_volt", 430.0f);  // 触发, active=true
+        TEST_ASSERT(rt2.isActive("bat_overvolt") == true, "基线: bat_overvolt 已 active");
+
+        rt2.onValueChanged("bat_volt", std::nanf(""));  // NaN 不应 clear
+        TEST_ASSERT(rt2.isActive("bat_overvolt") == true,
+                    "NaN 不应清除已 active 的报警 (保守策略: 宁可保留误报, 不丢真报)");
+    }
 
     // ─── 汇总 ───
     printf("\n────────────────────────────────────\n");

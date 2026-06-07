@@ -2,6 +2,7 @@
 #include "alarm_runtime.h"
 #include "../generated/alarm_rule_def.h"
 #include "time_util.h"
+#include <cmath>
 
 AlarmRuntime::AlarmRuntime(const AlarmCallbacks& cb)
     : m_cb(cb) {}
@@ -39,6 +40,12 @@ void AlarmRuntime::init(const AlarmRuleDef* rules, int rule_count,
 }
 
 void AlarmRuntime::onValueChanged(const char* display_key, float value) {
+    // 边界检查: NaN/Inf 直接拒绝, 不评估任何规则
+    // (NaN 是浮点黑洞: NaN > x / NaN < x / NaN == x 永远 false,
+    //  唯一安全副作用是 COND_NE (value != threshold) 对 NaN 永远 true,
+    //  会误触发报警. 早返回跳过本轮评估, 保留旧 tick_count/active 状态)
+    if (!std::isfinite(value)) return;
+
     for (int i = 0; i < m_ruleCount; i++) {
         AlarmState* state = &m_states[i];
         const AlarmRuleDef* rule = &m_rules[i];
