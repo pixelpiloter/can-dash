@@ -233,6 +233,169 @@ static void test_invalid_dlc_handling(const char* sock_path, QCoreApplication& a
     ::unlink(sock_path);
 }
 
+// ── 测试 4: start/stop 幂等性 ────────────────────────────
+static void test_start_stop_idempotency() {
+    printf("  [test] start_stop_idempotency\n");
+    const char* sock = "/tmp/candash_test_idem.sock";
+    ::unlink(sock);
+
+    CanReceiverQt receiver(sock, nullptr);
+
+    // 初始未启动
+    TEST_ASSERT(!receiver.isRunning(), "initially not running");
+
+    // 第一次 start 成功
+    bool ok1 = receiver.start();
+    TEST_ASSERT(ok1, "first start() succeeded");
+    TEST_ASSERT(receiver.isRunning(), "isRunning() == true after start");
+
+    // 第二次 start 直接返回 true (idempotent)
+    bool ok2 = receiver.start();
+    TEST_ASSERT(ok2, "second start() returns true (idempotent)");
+    TEST_ASSERT(receiver.isRunning(), "still running after duplicate start");
+
+    // 第一次 stop
+    receiver.stop();
+    TEST_ASSERT(!receiver.isRunning(), "not running after stop");
+
+    // 第二次 stop 无副作用
+    receiver.stop();
+    TEST_ASSERT(!receiver.isRunning(), "still not running after duplicate stop");
+
+    // 重新 start 应该工作
+    bool ok3 = receiver.start();
+    TEST_ASSERT(ok3, "restart after stop succeeded");
+
+    receiver.stop();
+    ::unlink(sock);
+}
+
+// ── 测试 5: health/snapshot 状态 ───────────────────────────
+static void test_health_snapshot_states() {
+    printf("  [test] health_snapshot_states\n");
+    const char* sock = "/tmp/candash_test_health.sock";
+    ::unlink(sock);
+
+    CanReceiverQt receiver(sock, nullptr);
+
+    // 启动前: DISCONNECTED
+    HealthStatus h0 = receiver.health();
+    DisplaySnapshot s0 = receiver.snapshot();
+    TEST_ASSERT(h0 == HEALTH_DISCONNECTED, "health: stopped == DISCONNECTED");
+    TEST_ASSERT(s0.health == HEALTH_DISCONNECTED, "snapshot.health: stopped == DISCONNECTED");
+
+    receiver.start();
+    // 启动后: WAITING (无 client 连接)
+    HealthStatus h1 = receiver.health();
+    DisplaySnapshot s1 = receiver.snapshot();
+    TEST_ASSERT(h1 == HEALTH_WAITING, "health: running == WAITING");
+    TEST_ASSERT(s1.health == HEALTH_WAITING, "snapshot.health: running == WAITING");
+
+    receiver.stop();
+    // 停止后: DISCONNECTED
+    HealthStatus h2 = receiver.health();
+    DisplaySnapshot s2 = receiver.snapshot();
+    TEST_ASSERT(h2 == HEALTH_DISCONNECTED, "health: stopped == DISCONNECTED");
+    TEST_ASSERT(s2.health == HEALTH_DISCONNECTED, "snapshot.health: stopped == DISCONNECTED");
+
+    ::unlink(sock);
+}
+
+// ── 测试 6: IDataSource::UpdateCallback ────────────────────
+static int g_update_cb_count = 0;
+static void test_update_callback_fires(const char* sock_path, QCoreApplication& app) {
+    printf("  [test] update_callback_fires\n");
+    ::unlink(sock_path);
+    g_update_cb_count = 0;
+
+    CanReceiverQt receiver(sock_path, nullptr);
+    receiver.setUpdateCallback([](const DisplaySnapshot& /*snap*/) {
+        g_update_cb_count++;
+    });
+    receiver.start();
+
+    int client_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
+    (void)::connect(client_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    pumpEvents(app, 50);
+
+    // 发送 2 帧，应该触发 2 次 callback
+    const uint8_t data1[] = {0x01};
+    sendFrame(client_fd, 0x100, 1, data1);
+    const uint8_t data2[] = {0x02, 0x03};
+    sendFrame(client_fd, 0x200, 2, data2);
+    pumpEvents(app, 100);
+
+    TEST_ASSERT(g_update_cb_count == 2, "update callback fired 2 times for 2 frames");
+
+    ::close(client_fd);
+    receiver.stop();
+    ::unlink(sock_path);
+}
+
+// ── 测试 7: 空 socket_path 参数 (使用默认路径) ─────────────
+static void test_empty_socket_path() {
+    printf("  [test] empty_socket_path\n");
+    // 传空字符串，构造器应使用默认路径
+    CanReceiverQt receiver("", nullptr);
+    receiver.start();
+    TEST_ASSERT(receiver.isRunning(), "started with empty path (uses default)");
+    receiver.stop();
+    // 注意：此测试可能使用默认 /tmp/can_processor_socket，cleanup
+    ::unlink("/tmp/can_processor_socket");
+}
+
+// ── 测试 8: 一次 write 多帧（粘包） ─────────────────────────
+static int g_frame_count_8 = 0;
+static void test_multiple_frames_in_buffer(const char* sock_path, QCoreApplication& app) {
+    printf("  [test] multiple_frames_in_buffer\n");
+    ::unlink(sock_path);
+    g_frame_count_8 = 0;
+
+    CanReceiverQt receiver(sock_path, nullptr);
+    QObject::connect(&receiver, &CanReceiverQt::canFrameReceived,
+                     [](uint32_t /*can_id*/, const QByteArray& /*data*/) {
+        g_frame_count_8++;
+    });
+    receiver.start();
+
+    int client_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
+    (void)::connect(client_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    pumpEvents(app, 50);
+
+    // 一次 write 发送 3 帧（粘在一起）
+    uint8_t buf[3 * 6] = {};
+    // Frame 1: can_id=0x111, dlc=1, data=0xAA
+    uint32_t id1 = 0x111;
+    std::memcpy(buf + 0, &id1, 4);
+    buf[4] = 1;
+    buf[5] = 0xAA;
+    // Frame 2: can_id=0x222, dlc=1, data=0xBB
+    uint32_t id2 = 0x222;
+    std::memcpy(buf + 6, &id2, 4);
+    buf[10] = 1;
+    buf[11] = 0xBB;
+    // Frame 3: can_id=0x333, dlc=1, data=0xCC
+    uint32_t id3 = 0x333;
+    std::memcpy(buf + 12, &id3, 4);
+    buf[16] = 1;
+    buf[17] = 0xCC;
+    ssize_t w = ::write(client_fd, buf, sizeof(buf));
+    TEST_ASSERT(w == static_cast<ssize_t>(sizeof(buf)), "3 frames written in one call");
+
+    pumpEvents(app, 100);
+    TEST_ASSERT(g_frame_count_8 == 3, "receiver parsed all 3 frames from single write");
+
+    ::close(client_fd);
+    receiver.stop();
+    ::unlink(sock_path);
+}
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     const char* sock_path = "/tmp/candash_test_receiver.sock";
@@ -242,6 +405,11 @@ int main(int argc, char* argv[]) {
     test_normal_frame_reception(sock_path, app);
     test_socket_disconnect_reconnect(sock_path, app);
     test_invalid_dlc_handling(sock_path, app);
+    test_start_stop_idempotency();
+    test_health_snapshot_states();
+    test_update_callback_fires(sock_path, app);
+    test_empty_socket_path();
+    test_multiple_frames_in_buffer(sock_path, app);
 
     printf("\nResults: %d/%d passed\n", g_test_passed, g_test_count);
     return (g_test_passed == g_test_count) ? 0 : 1;
