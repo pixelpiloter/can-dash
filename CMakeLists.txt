@@ -336,6 +336,17 @@ if(Qt6_FOUND)
     target_link_libraries(test_qt_data_binder PRIVATE Qt6::Core)
     add_test(NAME QtDataBinderTest COMMAND test_qt_data_binder)
 
+    # CanReceiverQt（Qt + Unix Domain Socket 接收器）
+    add_executable(test_can_receiver_qt tests/test_can_receiver_qt.cpp
+        ${LAYER1_DIR}/shm/shm_display.cpp
+        ${LAYER3_DIR}/file_logger.cpp
+        ${LAYER3_DIR}/qml_logger_bridge.cpp
+        ${LAYER3_DIR}/can_receiver_qt.cpp)
+    target_include_directories(test_can_receiver_qt PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR})
+    target_link_libraries(test_can_receiver_qt PRIVATE Qt6::Core)
+    add_test(NAME CanReceiverQtTest COMMAND test_can_receiver_qt)
+
     # DashboardBackend 胶水（Qt + Layer 1 shm + Layer 2 language + 所有 Layer 3）
     # PR 44 修复: shm_data_source 引用全部 L2 manager, test_dashboard_backend 也要 link 它们
     add_executable(test_dashboard_backend tests/test_dashboard_backend.cpp
