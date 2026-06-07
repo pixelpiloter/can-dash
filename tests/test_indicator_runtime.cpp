@@ -131,6 +131,188 @@ int main() {
     }
     printf("  ✓ re-init 100 次 + 替换表大小 不崩溃, 状态机仍正常\n");
 
+    // ─── 测试10：空表（table_count=0）安全 ───
+    // 背景: IndicatorRuntime::init() 早返回 (table_count <= 0) 不分配 m_states.
+    //       此后任何 query/setIndicator 都必须安全.
+    printf("\n[测试10] 空表 (table_count=0) 边界安全\n");
+    {
+        IndicatorRuntime rt(cb);
+        rt.init(nullptr, 0);  // 必须不崩溃
+        assert(rt.activeCount() == 0);
+        assert(!rt.isOn("anything"));
+        assert(!rt.isOn("bat_warn_light"));
+        // 重复 setIndicator 未知 id 也不崩
+        rt.setIndicator("ghost_light", true, true, 1.0f);
+        rt.setIndicator(nullptr, true, false, 0.0f);
+        assert(rt.activeCount() == 0);
+        // 多次 tick 也安全
+        rt.tick(0);
+        rt.tick(1000);
+        rt.tick(99999);
+        assert(rt.activeCount() == 0);
+    }
+    printf("  ✓ table_count=0 + 未知 id + tick 都安全\n");
+
+    // ─── 测试11：MAX_INDICATORS=32 边界 (32 个全部注册 + 全部点亮) ───
+    // 背景: m_states 是堆分配数组, MAX_INDICATORS=32 是头文件文档化上限.
+    //       项目实际使用 INDICATOR_TABLE_COUNT (yaml 生成) 远小于 32,
+    //       此处专门验证满载场景 32 个灯都能正确管理.
+    printf("\n[测试11] MAX_INDICATORS=32 满载 (32 个全部注册)\n");
+    {
+        // 32 个 IndicatorDef — name 必须稳定 (static buffer 数组)
+        static char names[32][16];
+        static IndicatorDef big_table[32];
+        for (int i = 0; i < 32; i++) {
+            snprintf(names[i], sizeof(names[i]), "ind_%02d", i);
+            big_table[i].id = names[i];
+            big_table[i].type = "light";
+            big_table[i].image_on = "on.png";
+            big_table[i].image_off = "off.png";
+            big_table[i].x = (int16_t)i;
+            big_table[i].y = 0;
+            big_table[i].width = 20;
+            big_table[i].height = 20;
+            big_table[i].flash_on_fault = false;
+        }
+        IndicatorRuntime rt(cb);
+        rt.init(big_table, 32);
+        assert(rt.activeCount() == 0);
+        // 点亮全部 32 个
+        clear_changes();
+        for (int i = 0; i < 32; i++) {
+            rt.setIndicator(big_table[i].id, true, false, 0.0f);
+        }
+        assert(rt.activeCount() == 32);
+        assert(rt.isOn("ind_00"));
+        assert(rt.isOn("ind_15"));
+        assert(rt.isOn("ind_31"));
+        assert(state_changes.size() == 32);
+        // 关闭一半
+        for (int i = 0; i < 16; i++) {
+            rt.setIndicator(big_table[i].id, false, false, 0.0f);
+        }
+        assert(rt.activeCount() == 16);
+        assert(!rt.isOn("ind_00"));
+        assert(rt.isOn("ind_31"));
+        // 关闭剩下的
+        for (int i = 16; i < 32; i++) {
+            rt.setIndicator(big_table[i].id, false, false, 0.0f);
+        }
+        assert(rt.activeCount() == 0);
+    }
+    printf("  ✓ 32 个指示灯 (MAX_INDICATORS) 满载 + 全部操作正确\n");
+
+    // ─── 测试12：activeCount 与 isOn 一致性 (核心不变量) ───
+    // 不变量: 对任意 runtime, activeCount() == Σ isOn(id) for all ids
+    printf("\n[测试12] activeCount == Σ isOn(id) 不变量\n");
+    {
+        IndicatorRuntime rt(cb);
+        rt.init(table, table_count);
+        // 初始: 都为 false, sum = 0
+        assert(rt.activeCount() == 0);
+        // 累加点亮
+        rt.setIndicator("bat_warn_light", true, false, 0.0f);
+        assert(rt.activeCount() == 1);
+        assert(rt.isOn("bat_warn_light"));
+        rt.setIndicator("engine_warn_light", true, true, 2.0f);
+        assert(rt.activeCount() == 2);
+        assert(rt.isOn("engine_warn_light"));
+        rt.setIndicator("turn_left_light", true, false, 0.0f);
+        assert(rt.activeCount() == 3);
+        // 全关
+        rt.setIndicator("bat_warn_light", false, false, 0.0f);
+        rt.setIndicator("engine_warn_light", false, false, 0.0f);
+        rt.setIndicator("turn_left_light", false, false, 0.0f);
+        assert(rt.activeCount() == 0);
+    }
+    printf("  ✓ activeCount 始终 == isOn 求和, 无静默丢失\n");
+
+    // ─── 测试13：setIndicator 幂等性 (同状态重复调用都触发回调) ───
+    // 当前实现: 每次 setIndicator 都无条件触发 onStateChange 回调.
+    //           行为契约: 回调频率 = 调用次数 (上层 AlarmRuntime 自己做去重).
+    printf("\n[测试13] setIndicator 幂等性: 每次调用都触发回调\n");
+    {
+        IndicatorRuntime rt(cb);
+        rt.init(table, table_count);
+        // 重复点亮 5 次, 期望回调 5 次
+        clear_changes();
+        for (int i = 0; i < 5; i++) {
+            rt.setIndicator("bat_warn_light", true, true, 1.5f);
+        }
+        assert(rt.activeCount() == 1);  // activeCount 仍 1
+        assert(state_changes.size() == 5);  // 回调 5 次
+        // 重复关闭 3 次
+        clear_changes();
+        for (int i = 0; i < 3; i++) {
+            rt.setIndicator("bat_warn_light", false, false, 0.0f);
+        }
+        assert(rt.activeCount() == 0);
+        assert(state_changes.size() == 3);
+    }
+    printf("  ✓ 同状态重复调用每次都触发回调 (activeCount 仍 0/1)\n");
+
+    // ─── 测试14：flashHz 变化 (关闭→闪烁, 闪烁→常亮) ───
+    // 场景: 同一指示灯从 off 切到 5Hz 闪烁, 再从 5Hz 切到 2Hz, 最后关掉.
+    // 验证: flash/flashHz 每次 setIndicator 都被正确更新 (activeCount 不变).
+    printf("\n[测试14] flashHz 多次变更\n");
+    {
+        IndicatorRuntime rt(cb);
+        rt.init(table, table_count);
+        rt.setIndicator("engine_warn_light", true, true, 5.0f);
+        assert(rt.isOn("engine_warn_light"));
+        assert(rt.activeCount() == 1);
+        // 改 Hz
+        rt.setIndicator("engine_warn_light", true, true, 2.0f);
+        assert(rt.isOn("engine_warn_light"));
+        assert(rt.activeCount() == 1);
+        // 切到常亮
+        rt.setIndicator("engine_warn_light", true, false, 0.0f);
+        assert(rt.isOn("engine_warn_light"));
+        assert(rt.activeCount() == 1);
+        // 关掉
+        rt.setIndicator("engine_warn_light", false, false, 0.0f);
+        assert(!rt.isOn("engine_warn_light"));
+        assert(rt.activeCount() == 0);
+    }
+    printf("  ✓ flashHz 在 on/flash 状态下可被多次更新\n");
+
+    // ─── 测试15：空回调 (IndicatorCallbacks 留空) ───
+    // 场景: IndicatorCallbacks{} 不传 onStateChange, setIndicator 仍能更新状态.
+    //       activeCount/isOn 仍正确, 不依赖回调.
+    printf("\n[测试15] 空回调 (无 onStateChange) 安全\n");
+    {
+        IndicatorCallbacks empty_cb = {};  // 全 nullptr
+        IndicatorRuntime rt(empty_cb);
+        rt.init(table, table_count);
+        // 必须不崩溃 (即使 m_cb.onStateChange 是 nullptr)
+        rt.setIndicator("bat_warn_light", true, true, 2.0f);
+        assert(rt.isOn("bat_warn_light"));
+        assert(rt.activeCount() == 1);
+        rt.setIndicator("engine_warn_light", true, false, 0.0f);
+        assert(rt.activeCount() == 2);
+        rt.tick(1000);
+        rt.tick(2000);
+        assert(rt.activeCount() == 2);  // tick 不影响 activeCount
+        // 关闭
+        rt.setIndicator("bat_warn_light", false, false, 0.0f);
+        assert(rt.activeCount() == 1);
+    }
+    printf("  ✓ 回调指针为 nullptr 时 setIndicator/tick 仍正常\n");
+
+    // ─── 测试16：空 widget_id="" (空字符串) 安全 ───
+    // 边界: setIndicator("", ...) 不会 crash. 实际空 id 不在表中, 应被忽略.
+    printf("\n[测试16] 空字符串 widget_id 安全\n");
+    {
+        IndicatorRuntime rt(cb);
+        rt.init(table, table_count);
+        clear_changes();
+        rt.setIndicator("", true, false, 0.0f);
+        // 空 id 不会匹配任何 IndicatorDef (table 里都是非空), 应静默忽略
+        assert(rt.activeCount() == 0);
+        assert(state_changes.empty());
+    }
+    printf("  ✓ 空字符串 widget_id 不匹配表中任何 id, 静默忽略\n");
+
     printf("\n所有测试通过。\n");
     return 0;
 }
