@@ -4,7 +4,7 @@ CAN 仿真引擎
 通过 Unix Socket 向 can-dash 发送模拟 CAN 帧
 
 Usage:
-    python can_sim/engine.py [--scenario driving|charging|fault|idle|highway|low_battery|hybrid|regen] [--duration 30]
+    python can_sim/engine.py [--scenario driving|charging|fault|idle|highway|low_battery|hybrid|regen|thermal] [--duration 30]
 
 Scenarios:
     driving      - 正常驾驶循环（默认）：加速 → 巡航 → 减速
@@ -16,6 +16,7 @@ Scenarios:
     hybrid       - 混合驱动：能量模式 HYBRID (energy_mode=1), 电机+发动机同时工作
     regen        - 能量回收：高速→刹车减速, bat_curr 变正 (充电), charge_power > 0, SOC 微涨
     limp_home    - 跛行模式：engine_fault=1, 限速 50km/h, charge_fault=0, 验证 LimpHomePanel
+    thermal      - 电池热失控：重载低速→battery_temp 升至 65/75°C, 触发 bat_thermal warning/critical
 """
 
 import argparse
@@ -152,6 +153,36 @@ def make_scenario(name: str) -> Scenario:
             "charge_status": 0,
             "charge_power": 0,
             "charge_fault": 0,
+        })
+    elif name == "thermal":
+        # 电池热失控场景: 重载低速 → 电池持续大电流放电 → battery_temp 升至危险区
+        # 用途: 验证 alarm_rules.yaml 的 bat_thermal (battery_temp>65) 和
+        #       bat_thermal_critical (battery_temp>75) 报警触发/恢复
+        # 周期 500 ticks (25s @ 50ms): 5 段每段 100 ticks = 5s
+        #   0~100  (5s):  急加速 + 大电流放电,  temp 30→55°C
+        #   100~200(5s):  持续低速重载,         temp 55→68°C  (触发 bat_thermal)
+        #   200~300(5s):  极限放电,            temp 68→80°C  (触发 bat_thermal_critical)
+        #   300~400(5s):  减速停驶,            temp 80→70°C  (critical 解除, warning 仍触发)
+        #   400~500(5s):  静止冷却,            temp 70→58°C  (warning 解除, 验证恢复)
+        s.initial.update({
+            "vehicle_speed": 0,        # 起始 0
+            "bat_soc": 60,             # 中等电量 (重载放电用)
+            "bat_volt": 360,           # 正常电压
+            "bat_curr": -100,          # 重载放电 (update_thermal 会进一步拉大)
+            "battery_temp": 30,        # 起始常温
+            "energy_mode": 0,          # EV 模式 (纯电, 电池单独工作, 升温快)
+            "engine_rpm": 0,
+            "engine_fault": 0,
+            "motor_rpm": 0,
+            "motor_temp": 40,          # 电机温度低 (起始)
+            "brake": 0,
+            "fuel_level": 50,
+            "charge_status": 0,
+            "charge_power": 0,
+            "charge_fault": 0,
+            # 胎压正常 (避免无关报警)
+            "tire_pressure_fl": 2.3, "tire_pressure_fr": 2.3,
+            "tire_pressure_rl": 2.3, "tire_pressure_rr": 2.3,
         })
     return s
 
@@ -385,6 +416,8 @@ class CanSimulator:
             self.update_regen(tick)
         elif self.scenario.name == "limp_home":
             self.update_limp_home(tick)
+        elif self.scenario.name == "thermal":
+            self.update_thermal(tick)
         else:
             self.update_driving(tick)  # default
 
@@ -569,6 +602,109 @@ class CanSimulator:
         self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
         self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
 
+    def update_thermal(self, tick: int):
+        """电池热失控场景: 重载低速 → 电池持续大电流放电 → battery_temp 升至危险区
+        周期 500 ticks (25s @ 50ms), 5 段每段 100 ticks = 5s:
+          0~100  (5s):  急加速 + 大电流放电,  temp 30→55°C
+          100~200(5s):  持续低速重载,         temp 55→68°C  (触发 bat_thermal warning)
+          200~300(5s):  极限放电,            temp 68→80°C  (触发 bat_thermal critical)
+          300~400(5s):  减速停驶,            temp 80→70°C  (critical 解除, warning 仍触发)
+          400~500(5s):  静止冷却,            temp 70→58°C  (warning 解除, 验证恢复)
+        用途: 验证 alarm_rules.yaml 的 bat_thermal (battery_temp>65) 和
+              bat_thermal_critical (battery_temp>75) 报警触发/恢复
+        """
+        phase = (tick % 500) / 500.0
+
+        # ── 车速: 加速→巡航低速→减速→静止 ──
+        if phase < 0.2:
+            # 阶段 1: 急加速 0→40 km/h
+            speed = (phase / 0.2) * 40
+        elif phase < 0.6:
+            # 阶段 2~3: 持续低速重载 40 km/h
+            speed = 40
+        elif phase < 0.8:
+            # 阶段 4: 减速 40→0
+            local = (phase - 0.6) / 0.2
+            speed = 40 * (1.0 - local)
+        else:
+            # 阶段 5: 静止冷却
+            speed = 0
+        speed += random.uniform(-0.5, 0.5)
+        self.state["vehicle_speed"] = max(0, min(260, speed))
+
+        # 刹车: 减速段 + 静止段 (这里为了简化, 静止段也算 brake=0)
+        if 0.6 <= phase < 0.8 and self.state["vehicle_speed"] > 5:
+            self.state["brake"] = 1
+        else:
+            self.state["brake"] = 0
+
+        # ── battery_temp 演化: 5 段递进, 含充放热 ──
+        # 阶段 1: 30→55 (升温 +0.5°C/tick = +10°C/s)
+        # 阶段 2: 55→68 (升温 +0.26°C/tick = +5.2°C/s)
+        # 阶段 3: 68→80 (升温 +0.24°C/tick = +4.8°C/s, 触顶)
+        # 阶段 4: 80→70 (自然冷却 -0.2°C/tick = -4°C/s)
+        # 阶段 5: 70→58 (静止冷却 -0.24°C/tick = -4.8°C/s, 仍 trigger warning)
+        if phase < 0.2:
+            # 阶段 1: 急加速
+            self.state["battery_temp"] = 30 + (phase / 0.2) * 25  # 30→55
+            self.state["bat_curr"] = -150 + (phase / 0.2) * -30  # 150A→180A 持续重载
+        elif phase < 0.4:
+            # 阶段 2: 持续重载 (warning 触发)
+            local = (phase - 0.2) / 0.2
+            self.state["battery_temp"] = 55 + local * 13  # 55→68
+            self.state["bat_curr"] = -200  # 极限放电
+        elif phase < 0.6:
+            # 阶段 3: 持续极限 (critical 触发)
+            local = (phase - 0.4) / 0.2
+            self.state["battery_temp"] = 68 + local * 12  # 68→80
+            self.state["bat_curr"] = -220  # 持续极限
+        elif phase < 0.8:
+            # 阶段 4: 减速, 电池开始自然冷却
+            local = (phase - 0.6) / 0.2
+            self.state["battery_temp"] = 80 - local * 10  # 80→70
+            self.state["bat_curr"] = -50 + local * 30  # 50A→20A 减载
+        else:
+            # 阶段 5: 静止, 持续冷却, 验证 warning 解除
+            local = (phase - 0.8) / 0.2
+            self.state["battery_temp"] = 70 - local * 12  # 70→58
+            self.state["bat_curr"] = -20  # 系统待机微耗电
+        # 抖动
+        self.state["battery_temp"] += random.uniform(-0.3, 0.3)
+        self.state["battery_temp"] = max(20, min(90, self.state["battery_temp"]))
+
+        # ── 电池: 电压随温度/SOC 变化 ──
+        # 温度升高时电压略升 (内阻减小), 但 SOC 下降会拖低
+        self.state["bat_volt"] = 355 + (self.state["battery_temp"] - 30) * 0.2
+        self.state["bat_volt"] = max(330, min(370, self.state["bat_volt"]))
+        self.state["bat_curr"] += random.uniform(-3, 3)
+        # 大量放电时 SOC 下降
+        if tick % 200 == 0 and self.state["bat_curr"] < -100:
+            self.state["bat_soc"] = max(20, self.state["bat_soc"] - 1)
+
+        # ── 电机: RPM = speed*50, 温度随负载上升 ──
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        # 电机温度: 重载时上升, 静止时下降
+        if phase < 0.6:
+            self.state["motor_temp"] = 40 + (phase / 0.6) * 50  # 40→90
+        elif phase < 0.8:
+            self.state["motor_temp"] = 90 - ((phase - 0.6) / 0.2) * 20  # 90→70
+        else:
+            self.state["motor_temp"] = 70 - ((phase - 0.8) / 0.2) * 15  # 70→55
+        self.state["motor_temp"] += random.uniform(-0.5, 0.5)
+        self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
+
+        # ── 发动机 / 充电: 全部正常 (热失控仅电池 + 电机) ──
+        self.state["engine_rpm"] = 0
+        self.state["engine_fault"] = 0
+        self.state["energy_mode"] = 0  # EV
+        self.state["charge_status"] = 0
+        self.state["charge_fault"] = 0
+        self.state["charge_power"] = 0
+
+        # 续航
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
+
     def run(self):
         sock = self.connect()
         self.running = True
@@ -679,7 +815,8 @@ def main():
     parser = argparse.ArgumentParser(description="CAN 仿真引擎")
     parser.add_argument("--scenario", default="driving",
                         choices=["driving", "charging", "fault", "idle",
-                                 "highway", "low_battery", "hybrid", "regen", "limp_home"],
+                                 "highway", "low_battery", "hybrid", "regen",
+                                 "limp_home", "thermal"],
                         help="仿真场景 (default: driving)")
     parser.add_argument("--duration", type=int, default=0,
                         help="运行时长（秒），0=无限 (default: 0)")
