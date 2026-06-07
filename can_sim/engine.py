@@ -15,6 +15,7 @@ Scenarios:
     low_battery  - 低电量：SOC<10% 触发 bat_soc_low + soc_critical_low 报警, 跛行降速
     hybrid       - 混合驱动：能量模式 HYBRID (energy_mode=1), 电机+发动机同时工作
     regen        - 能量回收：高速→刹车减速, bat_curr 变正 (充电), charge_power > 0, SOC 微涨
+    limp_home    - 跛行模式：engine_fault=1, 限速 50km/h, charge_fault=0, 验证 LimpHomePanel
 """
 
 import argparse
@@ -129,6 +130,27 @@ def make_scenario(name: str) -> Scenario:
             "fuel_level": 60,
             "charge_status": 0,       # 0 = 未插枪 (regen ≠ 充电桩充电)
             "charge_power": 0,        # update_regen 会让它 > 0
+            "charge_fault": 0,
+        })
+    elif name == "limp_home":
+        # 跛行模式场景：发动机故障 → 限速 50km/h 保护
+        # engine_fault=1 (触发 LimpHomeRuntime 进入 ACTIVE 级别)
+        # 车速上限 50km/h, 验证 LimpHomePanel 显示
+        # 周期 240 ticks (12s @ 50ms): 0~80 加速, 80~160 巡航 50, 160~240 减速
+        s.initial.update({
+            "vehicle_speed": 0,        # 起始 0
+            "bat_soc": 35,             # 中等电量
+            "bat_volt": 350,
+            "bat_curr": -30,           # 适度放电
+            "energy_mode": 0,          # EV 模式 (跛行时纯电驱动)
+            "engine_rpm": 0,           # 跛行时发动机停机
+            "engine_fault": 1,         # 关键: 发动机故障 → 跛行
+            "motor_rpm": 0,
+            "motor_temp": 65,          # 电机温度正常
+            "brake": 0,
+            "fuel_level": 50,
+            "charge_status": 0,
+            "charge_power": 0,
             "charge_fault": 0,
         })
     return s
@@ -361,6 +383,8 @@ class CanSimulator:
             self.update_hybrid(tick)
         elif self.scenario.name == "regen":
             self.update_regen(tick)
+        elif self.scenario.name == "limp_home":
+            self.update_limp_home(tick)
         else:
             self.update_driving(tick)  # default
 
@@ -486,6 +510,65 @@ class CanSimulator:
         self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
         self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
 
+    def update_limp_home(self, tick: int):
+        """跛行模式场景：engine_fault=1, 限速 50km/h
+        周期 240 ticks (12s @ 50ms): 0~80 加速 0→50, 80~160 巡航 50, 160~240 减速 50→0
+        用途: 验证 LimpHomePanel 显示和 LimpHomeRuntime state machine
+        """
+        phase = (tick % 240) / 240.0
+        if phase < 0.333:
+            # 加速 0 → 50
+            speed = (phase / 0.333) * 50
+        elif phase < 0.667:
+            # 巡航 50 (限速)
+            speed = 50
+        else:
+            # 减速 50 → 0
+            speed = (1.0 - (phase - 0.667) / 0.333) * 50
+        speed += random.uniform(-1, 1)  # 小幅抖动
+        self.state["vehicle_speed"] = max(0, min(50, speed))  # 硬限速 50
+
+        # 刹车: 减速时踩, 加速/巡航时不踩
+        if phase >= 0.667:
+            self.state["brake"] = 1 if self.state["vehicle_speed"] > 5 else 0
+        else:
+            self.state["brake"] = 0
+
+        # 电机: 转速 = speed * 50 (跛行时低转速)
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        # 温度: 跛行时电机不过载, 温度正常
+        self.state["motor_temp"] = 55 + (self.state["vehicle_speed"] / 50) * 15
+        self.state["motor_temp"] += random.uniform(-0.5, 0.5)
+        self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
+
+        # 电池: 适度放电
+        self.state["bat_volt"] += random.uniform(-0.3, 0.3)
+        self.state["bat_volt"] = max(330, min(370, self.state["bat_volt"]))
+        self.state["bat_curr"] = -20 + (self.state["vehicle_speed"] / 50) * -30
+        self.state["bat_curr"] += random.uniform(-3, 3)
+
+        # SOC: 跛行时缓慢下降
+        if tick % 800 == 0:
+            self.state["bat_soc"] = max(0, self.state["bat_soc"] - 1)
+
+        # 关键: 发动机故障, 发动机停机
+        self.state["engine_fault"] = 1
+        self.state["engine_rpm"] = 0
+        self.state["fuel_level"] = max(0, self.state["fuel_level"] - 0.001)  # 仍消耗油 (系统待机)
+        # 实际跛行时 engine 不工作, fuel_level 维持
+
+        # 能量模式: 跛行时强制 EV (纯电)
+        self.state["energy_mode"] = 0
+
+        # 充电: 跛行时不允许充电
+        self.state["charge_status"] = 0
+        self.state["charge_fault"] = 0
+        self.state["charge_power"] = 0
+
+        # 续航
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
+
     def run(self):
         sock = self.connect()
         self.running = True
@@ -596,7 +679,7 @@ def main():
     parser = argparse.ArgumentParser(description="CAN 仿真引擎")
     parser.add_argument("--scenario", default="driving",
                         choices=["driving", "charging", "fault", "idle",
-                                 "highway", "low_battery", "hybrid"],
+                                 "highway", "low_battery", "hybrid", "regen", "limp_home"],
                         help="仿真场景 (default: driving)")
     parser.add_argument("--duration", type=int, default=0,
                         help="运行时长（秒），0=无限 (default: 0)")
