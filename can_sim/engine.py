@@ -4,7 +4,7 @@ CAN 仿真引擎
 通过 Unix Socket 向 can-dash 发送模拟 CAN 帧
 
 Usage:
-    python can_sim/engine.py [--scenario driving|charging|fault|idle|highway|low_battery] [--duration 30]
+    python can_sim/engine.py [--scenario driving|charging|fault|idle|highway|low_battery|hybrid|regen] [--duration 30]
 
 Scenarios:
     driving      - 正常驾驶循环（默认）：加速 → 巡航 → 减速
@@ -14,6 +14,7 @@ Scenarios:
     highway      - 高速巡航：持续 120-130km/h, energy_mode=2 (engine boost), 高功耗
     low_battery  - 低电量：SOC<10% 触发 bat_soc_low + soc_critical_low 报警, 跛行降速
     hybrid       - 混合驱动：能量模式 HYBRID (energy_mode=1), 电机+发动机同时工作
+    regen        - 能量回收：高速→刹车减速, bat_curr 变正 (充电), charge_power > 0, SOC 微涨
 """
 
 import argparse
@@ -109,6 +110,26 @@ def make_scenario(name: str) -> Scenario:
             "fuel_level": 55,         # 燃油中等
             "charge_status": 0,
             "charge_power": 0,
+        })
+    elif name == "regen":
+        # 能量回收场景：高速→急减速, 电机反转作发电机
+        # bat_curr 变正 (充电), charge_power > 0, SOC 微涨
+        # 用途: 验证 charge_power>0 + bat_curr>0 + EnergyFlowDiagram 充电动画
+        s.initial.update({
+            "vehicle_speed": 80,      # 起始高速 (后续 update_regen 减速)
+            "bat_soc": 60,            # 中等 SOC (回收后微涨)
+            "bat_volt": 355,
+            "bat_curr": -50,          # 起始为放电, update_regen 会变正
+            "energy_mode": 0,         # EV (无发动机)
+            "engine_rpm": 0,          # 纯电回收
+            "engine_fault": 0,
+            "motor_rpm": 4000,        # 高速对应高 RPM
+            "motor_temp": 55,
+            "brake": 0,               # 起始未踩, 减速时切 1
+            "fuel_level": 60,
+            "charge_status": 0,       # 0 = 未插枪 (regen ≠ 充电桩充电)
+            "charge_power": 0,        # update_regen 会让它 > 0
+            "charge_fault": 0,
         })
     return s
 
@@ -338,6 +359,8 @@ class CanSimulator:
             self.update_low_battery(tick)
         elif self.scenario.name == "hybrid":
             self.update_hybrid(tick)
+        elif self.scenario.name == "regen":
+            self.update_regen(tick)
         else:
             self.update_driving(tick)  # default
 
@@ -391,6 +414,77 @@ class CanSimulator:
         self.state["charge_status"] = 0
         self.state["charge_fault"] = 0
         self.state["charge_power"] = 0
+
+    def update_regen(self, tick: int):
+        """能量回收场景：高速→急减速, 电机反转作发电机
+        周期 240 ticks (12s @ 50ms):
+          0~80   (4s): 维持高速 80km/h, 正常放电
+          80~160 (4s): 急减速 80→0, 触发 regen (bat_curr 翻正, charge_power > 0)
+          160~240(4s): 静止 (speed=0), 保持少量 regen 充能
+        """
+        phase = (tick % 240) / 240.0
+        if phase < 0.333:
+            # ── 阶段 1: 维持高速, 正常放电 ──
+            speed = 80
+            self.state["brake"] = 0
+            # bat_curr 负 (放电), charge_power=0
+            self.state["bat_curr"] = -50 + random.uniform(-5, 5)
+            self.state["charge_power"] = 0
+        elif phase < 0.667:
+            # ── 阶段 2: 急减速 80→0, 触发 regen ──
+            # 局部 phase (0..1) 表示 80→0 的进度
+            local = (phase - 0.333) / 0.334
+            speed = 80 * (1.0 - local)  # 80 → 0 线性
+            speed = max(0, speed)
+            self.state["brake"] = 1 if speed > 5 else 0  # 减速中踩刹车
+            # regen 强度: 与瞬时减速度成正比 (这里简化为速度本身)
+            regen_amp = speed * 1.5  # km/h → 充电电流
+            self.state["bat_curr"] = regen_amp + random.uniform(-3, 3)
+            self.state["charge_power"] = speed * 0.6  # kW
+        else:
+            # ── 阶段 3: 静止, 微充 (电机 freewheel) ──
+            speed = 0
+            self.state["brake"] = 0
+            self.state["bat_curr"] = 5 + random.uniform(-1, 1)
+            self.state["charge_power"] = 0.5 + random.uniform(-0.1, 0.1)
+        # 小幅抖动
+        speed += random.uniform(-0.5, 0.5)
+        self.state["vehicle_speed"] = max(0, min(260, speed))
+
+        # 电机: 高速时高 RPM, 减速时下降
+        # regen 时电机 RPM 仍随轮速
+        self.state["motor_rpm"] = int(self.state["vehicle_speed"] * 50)
+        # 温度: regen 时电机也发热, 但比驱动时低
+        if phase < 0.333:
+            self.state["motor_temp"] = 55 + random.uniform(-0.5, 0.5)
+        elif phase < 0.667:
+            # 急减速时温度微涨 (regen 也有损耗)
+            self.state["motor_temp"] = 58 + random.uniform(-0.5, 0.5)
+        else:
+            self.state["motor_temp"] = 56 + random.uniform(-0.3, 0.3)
+        self.state["motor_temp"] = max(30, min(150, self.state["motor_temp"]))
+
+        # 电池: 充电时电压微涨
+        if self.state["bat_curr"] > 0:
+            self.state["bat_volt"] = 355 + min(10, self.state["bat_curr"] * 0.05)
+        else:
+            self.state["bat_volt"] = 350 + random.uniform(-0.3, 0.3)
+        self.state["bat_volt"] = max(310, min(370, self.state["bat_volt"]))
+
+        # SOC: regen 时微涨 (每 5s +0.1, 非常慢)
+        if self.state["bat_curr"] > 10 and tick % 100 == 0:
+            self.state["bat_soc"] = min(100, self.state["bat_soc"] + 0.1)
+
+        # 能量模式: 整个过程都是 EV
+        self.state["energy_mode"] = 0
+        self.state["engine_rpm"] = 0
+        self.state["engine_fault"] = 0
+        self.state["charge_status"] = 0   # 0 = regen (非充电桩)
+        self.state["charge_fault"] = 0
+
+        # 续航
+        self.state["ev_range"] = max(0, int(self.state["bat_soc"] * 1.0))
+        self.state["fuel_range"] = int(self.state["fuel_level"] * 8)
 
     def run(self):
         sock = self.connect()
