@@ -5,9 +5,11 @@
 #include "layer1/shm/shm_display.h"
 #include "layer2/time_util.h"
 #include "generated/limp_home_def.h"  // PR 44: LIMP_HOME_CONFIG (yaml→C 生成的跛行模式配置)
+#include "rule_engine.h"              // PR-EXPR-2: pImpl 化, 头里前向声明, .cpp include
 #include "file_logger.h"
 
 #include <QDebug>
+#include <QFileInfo>
 #include <cstring>
 #include <cmath>
 
@@ -78,6 +80,37 @@ bool ShmDataSource::start() {
     m_timer->start(m_tickIntervalMs);
     FileLogger::instance().info(QStringLiteral("ShmDataSource"),
         QStringLiteral("Timer started, interval=%1ms").arg(m_tickIntervalMs));
+
+    // ─── 启动规则引擎 (PR-EXPR-2) ───
+    m_rule_engine = std::make_unique<candash::ExprRuleEngine>();
+
+    // yaml 路径: CWD/../config/derived_rules.yaml (开发) 或 install path (生产)
+    // 找不到 → 引擎空跑, 不影响其他 L2 manager
+    m_ruleEngineYamlPath = QStringLiteral("../config/derived_rules.yaml");
+    QFileInfo re_yaml(m_ruleEngineYamlPath);
+    if (!re_yaml.exists()) {
+        m_ruleEngineYamlPath = QStringLiteral("config/derived_rules.yaml");
+    }
+
+    // 注册 setter: 闭包直接改 m_snapshot, binder 推时自动 NOTIFY
+    m_rule_engine->registerSetter("set_trip_range_confidence", 1,
+        [this](const std::vector<double>& a) {
+            m_snapshot.trip_range_confidence_pct = static_cast<float>(a[0]);
+        });
+
+    if (QFileInfo(m_ruleEngineYamlPath).exists()) {
+        if (m_rule_engine->loadRules(m_ruleEngineYamlPath)) {
+            FileLogger::instance().info(QStringLiteral("ShmDataSource"),
+                QStringLiteral("Rule engine loaded: %1 rules from %2")
+                    .arg(m_rule_engine->ruleCount()).arg(m_ruleEngineYamlPath));
+        } else {
+            FileLogger::instance().warn(QStringLiteral("ShmDataSource"),
+                QStringLiteral("Rule engine load FAILED, continuing without rules"));
+        }
+    } else {
+        FileLogger::instance().info(QStringLiteral("ShmDataSource"),
+            QStringLiteral("Rule engine yaml not found at %1, skipping").arg(m_ruleEngineYamlPath));
+    }
 
     m_running = true;
     return true;
@@ -341,6 +374,50 @@ void ShmDataSource::onTick() {
         next.limp_home.active = lr.active ? 1u : 0u;
         if (lr.messageZh) std::strncpy(next.limp_home.message_zh, lr.messageZh, sizeof(next.limp_home.message_zh) - 1);
         if (lr.messageEn) std::strncpy(next.limp_home.message_en, lr.messageEn, sizeof(next.limp_home.message_en) - 1);
+    }
+
+    // ─── 4.12. 规则引擎评估 (PR-EXPR-2) ───
+    // 把 snapshot 拍平到 QVariantMap, 喂给 exprtk symbol table
+    // setter 闭包已注册, 会改 m_snapshot 字段 (注意: 我们改 next 然后 m_snapshot = next 推给 binder)
+    if (m_rule_engine->ruleCount() > 0) {
+        // idle_seconds 派生: vehicle_speed=0 累计时长
+        if (shm.vehicle_speed == 0.0f) {
+            if (m_idleStartMs == 0) m_idleStartMs = now;
+        } else {
+            m_idleStartMs = 0;
+        }
+        const uint64_t idle_sec = (m_idleStartMs == 0) ? 0
+                                  : (now - m_idleStartMs) / 1000;
+
+        // signal_lost 标志: 看 updated_mask bit
+        // updated_mask bit 数位: 跟 SIGNAL_TABLE 顺序对齐
+        // 简化: 暂时认为 mask=0 都是 lost (实际需要按位查表)
+        // TODO: 用 shm_display_field_validity(shm, name) 查
+        auto isLost = [&](const char* name) -> int {
+            // 简化版: 任何 signal updated_mask=0 时算 lost
+            // 后续用 shm_display_field_validity 精确定位
+            return (shm.updated_mask == 0) ? 1 : 0;  // 整个 mask 为 0 时全 lost
+        };
+
+        m_ruleEngineCtx = QVariantMap{};
+        m_ruleEngineCtx["bat_soc"]              = static_cast<double>(shm.bat_soc);
+        m_ruleEngineCtx["bat_volt"]             = static_cast<double>(shm.bat_volt);
+        m_ruleEngineCtx["vehicle_speed"]        = static_cast<double>(shm.vehicle_speed);
+        m_ruleEngineCtx["motor_temp"]           = static_cast<double>(shm.motor_temp);
+        m_ruleEngineCtx["precharge_status"]     = static_cast<double>(shm.charge_status);
+        m_ruleEngineCtx["idle_seconds"]         = static_cast<double>(idle_sec);
+        m_ruleEngineCtx["bat_soc_lost"]         = isLost("bat_soc");
+        m_ruleEngineCtx["bat_volt_lost"]        = isLost("bat_volt");
+        m_ruleEngineCtx["vehicle_speed_lost"]   = isLost("vehicle_speed");
+        m_ruleEngineCtx["driver_occupied"]      = static_cast<double>(shm.driver_occupied);
+        m_ruleEngineCtx["driver_buckled"]       = static_cast<double>(shm.driver_buckled);
+        m_ruleEngineCtx["passenger_occupied"]   = static_cast<double>(shm.passenger_occupied);
+        m_ruleEngineCtx["passenger_buckled"]    = static_cast<double>(shm.passenger_buckled);
+        m_ruleEngineCtx["health"]               = static_cast<double>(new_health);
+        m_ruleEngineCtx["view_current"]         = static_cast<double>(next.view_current);
+        m_rule_engine->evaluate(m_ruleEngineCtx);
+        // setter 闭包改的是 m_snapshot, 同步到 next 让推送生效
+        next.trip_range_confidence_pct = m_snapshot.trip_range_confidence_pct;
     }
 
     // ─── 5. 推送快照 ───

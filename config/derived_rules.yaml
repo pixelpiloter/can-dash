@@ -1,25 +1,26 @@
 # derived_rules.yaml
-# 运行时配置驱动的派生计算 / 状态机 / 报警联动 (C 语法表达式)
-# 引擎: exprtk + yaml-cpp (启动时编译一次, 16ms tick 评估)
-# 设计: "改业务不动 C++" — 加新规则改这里就行
+# 运行时配置驱动的派生计算 / 状态机 / 报警引擎 (PR-EXPR-2: 集成到 ShmDataSource)
+# 引擎: exprtk + yaml-cpp
+# 接入点: ShmDataSource::onTick() 在 "5. 推送快照" 前 evaluate(ctx)
+# 数据流: DisplaySnapshot 拍平 → ctx → exprtk 求值 → setter 改 m_snapshot → binder 自动 NOTIFY
 #
-# 表达式可用变量 (ShmDataSource::onTick 末尾注入):
+# 表达式可用变量 (C++ 端 registerVariable 绑定到 ctx 字段):
 #   bat_soc, bat_volt, vehicle_speed, motor_temp
 #   precharge_status, idle_seconds
-#   bat_soc_lost, bat_volt_lost, vehicle_speed_lost    ← 0/1 信号丢失标志
+#   bat_soc_lost, bat_volt_lost, vehicle_speed_lost
 #   driver_occupied, driver_buckled
 #   passenger_occupied, passenger_buckled
-#   health        ← 0=disconnected 1=waiting 2=stale 3=ok
-#   view_current  ← 当前视图 (可读)
+#   health (0=disconnected 1=waiting 2=stale 3=ok)
+#   view_current
 #
-# 表达式可用 setter (C++ 端 registerAction 注册, 调 QtDataBinder):
-#   set_trip_range_confidence(v: 0-100)
-#   set_view_mode(v: 0=DRIVE 1=READY 2=SHUTDOWN 3=GO)
-#   set_limp_home_level(v: 0=NORMAL 1=L1 2=L2 3=L3)
-#   set_indicator(id: 0-11, on: 0/1, flash: 0/1, hz: float)
-#   push_alarm(name, zh, en, severity: 0/1/2, color: "#RRGGBB")
+# 表达式可用 setter (C++ 端 registerSetter 注册):
+#   set_trip_range_confidence(v: 0-100)     ← PR-EXPR-2 验证
+#   set_view_mode(v: 0=DRIVE 1=READY 2=SHUTDOWN 3=GO)        ← PR-EXPR-3 加
+#   set_indicator(id: 0-11, on, flash, hz)   ← PR-EXPR-3 加
+#   push_alarm(name, zh, en, severity, color) ← PR-EXPR-3 加
 
 derived_metrics:
+  # ── 续航可信度: 5 档分支 (示例规则, 跟现有 L2 trip_computer 算法等价) ──
   - id: "range_confidence"
     expr: |
       if (bat_soc_lost == 1) {
@@ -32,76 +33,4 @@ derived_metrics:
         set_trip_range_confidence(30);
       } else {
         set_trip_range_confidence(100);
-      }
-
-state_machines:
-  - id: "view_mode"
-    expr: |
-      if (health == 0) {
-        set_view_mode(2);
-        set_indicator(3, 0, 0, 0);
-      } else if (precharge_status == 0) {
-        set_view_mode(1);
-        set_indicator(3, 1, 0, 0);
-      } else if (vehicle_speed < 0.5) {
-        set_view_mode(1);
-        set_indicator(3, 1, 0, 0);
-      } else if (vehicle_speed < 5.0) {
-        set_view_mode(3);
-        set_indicator(3, 1, 1, 2.0);
-      } else {
-        set_view_mode(0);
-        set_indicator(3, 0, 0, 0);
-      }
-
-  - id: "limp_home_level"
-    expr: |
-      if (bat_soc_lost == 1 or vehicle_speed_lost == 1) {
-        set_limp_home_level(3);
-      } else if (bat_soc < 5) {
-        set_limp_home_level(2);
-      } else if (bat_soc < 10 or motor_temp > 85) {
-        set_limp_home_level(1);
-      } else {
-        set_limp_home_level(0);
-      }
-
-alarm_rules:
-  - id: "bat_volt_lost"
-    expr: |
-      if (bat_volt_lost == 1) {
-        push_alarm("bat_volt_lost", "电池信号丢失", "BAT SIGNAL LOST", 2, "#FF2200");
-        set_indicator(4, 1, 1, 4.0);
-      } else {
-        set_indicator(4, 0, 0, 0);
-      }
-
-  - id: "bat_volt_undervolt"
-    expr: |
-      if (bat_volt_lost == 0 and bat_volt < 280.0) {
-        push_alarm("bat_undervolt", "电池欠压！", "BATTERY UNDERVOLTAGE", 1, "#FFAA00");
-        set_indicator(4, 1, 1, 2.0);
-      } else if (bat_volt_lost == 0 and bat_volt > 420.0) {
-        push_alarm("bat_overvolt", "电池过压！", "BATTERY OVERVOLTAGE", 2, "#FF4400");
-        set_indicator(4, 1, 1, 2.0);
-      } else {
-        set_indicator(4, 0, 0, 0);
-      }
-
-  - id: "vehicle_speed_lost"
-    expr: |
-      if (vehicle_speed_lost == 1) {
-        push_alarm("speed_lost", "车速信号丢失", "SPEED SIGNAL LOST", 2, "#FF2200");
-      }
-
-  - id: "seat_belt_warning"
-    expr: |
-      if ((driver_buckled == 0 and driver_occupied == 1)
-          or (passenger_buckled == 0 and passenger_occupied == 1)) {
-        if (vehicle_speed > 5.0 and vehicle_speed_lost == 0) {
-          push_alarm("seatbelt", "请系好安全带", "FASTEN SEATBELT", 1, "#FFAA00");
-          set_indicator(8, 1, 1, 1.5);
-        }
-      } else {
-        set_indicator(8, 0, 0, 0);
       }

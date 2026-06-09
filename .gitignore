@@ -1,6 +1,7 @@
 # build artifacts
 build/
 build-processor/
+build-rule/        # PR-EXPR
 build-test/
 build_ci/
 build_ci_test/

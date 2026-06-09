@@ -113,7 +113,7 @@ if(Qt6_FOUND)
         ${LAYER2_DIR}
         ${LAYER3_DIR}
     )
-    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg Qt6::Concurrent rt)
+    target_link_libraries(can-dash PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Svg Qt6::Concurrent rule_engine rt)
 else()
     message(STATUS "Qt6 not found — skipping can-dash UI binary (UT only)")
 endif()
@@ -346,6 +346,8 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_shm_data_source PRIVATE Qt6::Core)
     add_dependencies(test_shm_data_source run_yaml_to_c)
+    # PR-EXPR-2: shm_data_source.cpp 实例化 ExprRuleEngine, 需 link rule_engine (含 exprtk include)
+    target_link_libraries(test_shm_data_source PRIVATE rule_engine)
     add_test(NAME ShmDataSourceTest COMMAND test_shm_data_source)
 
     # QtDataBinder（Qt + Layer 2 language）
@@ -381,6 +383,7 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_dashboard_backend PRIVATE Qt6::Core)
     add_dependencies(test_dashboard_backend run_yaml_to_c)
+    target_link_libraries(test_dashboard_backend PRIVATE rule_engine)  # PR-EXPR-2
     add_test(NAME DashboardBackendTest COMMAND test_dashboard_backend)
 
     # ChimeManager 数据流集成 (PR 14): ShmDataSource::onTick 桥接 warning→chime
@@ -404,6 +407,7 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_chime_data_flow PRIVATE Qt6::Core)
     add_dependencies(test_chime_data_flow run_yaml_to_c)
+    target_link_libraries(test_chime_data_flow PRIVATE rule_engine)  # PR-EXPR-2
     add_test(NAME ChimeDataFlowTest COMMAND test_chime_data_flow)
 
     # SelfTestRuntime 数据流集成 (PR 17): ShmDataSource::onTick 桥接 signal→self_test
@@ -430,5 +434,6 @@ if(Qt6_FOUND)
         ${CMAKE_SOURCE_DIR}/src ${LAYER1_DIR} ${LAYER2_DIR} ${LAYER3_DIR} ${GENERATED_DIR})
     target_link_libraries(test_self_test_data_flow PRIVATE Qt6::Core)
     add_dependencies(test_self_test_data_flow run_yaml_to_c)
+    target_link_libraries(test_self_test_data_flow PRIVATE rule_engine)  # PR-EXPR-2
     add_test(NAME SelfTestDataFlowTest COMMAND test_self_test_data_flow)
 endif()

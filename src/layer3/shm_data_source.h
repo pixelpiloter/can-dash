@@ -19,9 +19,16 @@
 #include "layer2/self_test_runtime.h" // 显示自检 (PR 17, 信号卡死/越界)
 #include "layer2/limp_home_runtime.h"  // 跛行模式 (PR 44, 关键信号超时)
 #include "generated/signal_def.h"     // SIGNAL_TABLE (SelfTestRuntime init 用, PR 17)
+
 #include <QTimer>
 #include <QObject>
+#include <QString>
+#include <QVariantMap>
 #include <atomic>
+#include <memory>
+
+class LimpHomeRuntime;  // 全局 namespace, 见 PR 43
+namespace candash { class ExprRuleEngine; }  // PR-EXPR-2: pImpl, 避免头里 include exprtk 1.6MB
 
 class ShmDataSource : public QObject, public IDataSource {
     Q_OBJECT
@@ -162,6 +169,16 @@ private:
     // C 模式: 喂 + tick 用同一 commit_ms, elapsed=0 → 永远 NORMAL (跟 L2 单测的 stuck 行为对照)
     // 注: LimpHomeRuntime 在全局 namespace, 不在 candash:: (跟其他 manager 不一样, PR 43 的设计选择)
     LimpHomeRuntime m_limp_home;
+
+    // 规则引擎 (PR-EXPR-2) — exprtk 字符串表达式, 16ms tick 评估
+    // pImpl: 头里前向声明, .cpp include rule_engine.h
+    // 启动时 m_rule_engine = make_unique<ExprRuleEngine>() + loadRules + registerSetter
+    // onTick() 4.12 节 evaluate(ctx) 改 m_snapshot.trip_range_confidence_pct
+    // setter 改 m_snapshot 后, m_updateCb(m_snapshot) 推给 binder, binder 比较后 NOTIFY
+    std::unique_ptr<candash::ExprRuleEngine> m_rule_engine;
+    QString                 m_ruleEngineYamlPath;  // 启动时 init 用的 yaml 路径
+    QVariantMap             m_ruleEngineCtx;       // 复用的 ctx (避免每帧分配)
+    uint64_t                m_idleStartMs = 0;     // vehicle_speed=0 起始时间 (派生 idle_seconds)
 
     // 回调
     UpdateCallback m_updateCb;

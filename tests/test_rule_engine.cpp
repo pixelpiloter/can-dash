@@ -178,7 +178,7 @@ derived_metrics:
         TEST_ASSERT(!ok, "bad syntax → load fails");
     }
 
-    // ─── 测试 5: 多 setter 联动 (完整 yaml) ───
+    // ─── 测试 5: 完整 yaml (PR-EXPR-2: derived_rules.yaml 当前只 1 条规则) ───
     printf("\n[Test 5] Full YAML with multiple setters\n");
     {
         SetterSpy spy;
@@ -200,7 +200,8 @@ derived_metrics:
         bool ok = engine.loadRules("../config/derived_rules.yaml");
         if (ok) {
             printf("  (loaded %d rules from project yaml)\n", engine.ruleCount());
-            // 跑一帧 SOC 正常 + 速度 0
+            // PR-EXPR-2: yaml 当前只有 range_confidence 规则
+            // 跑一帧 SOC 60% + 速度 0 → conf = 100
             engine.evaluate({
                 {"bat_soc", 60.0}, {"bat_volt", 360.0},
                 {"vehicle_speed", 0.0}, {"motor_temp", 50.0},
@@ -211,8 +212,7 @@ derived_metrics:
                 {"health", 3}, {"view_current", 0}
             });
             TEST_ASSERT(spy.last_trip_range == 100.0, "SOC 60% → conf 100");
-            TEST_ASSERT(spy.last_view == 1, "speed 0 → view READY");
-            TEST_ASSERT(spy.last_ind_on == true, "READYGO indicator on");
+            // PR-EXPR-3 才加 set_view_mode / set_indicator, 当前 yaml 没有对应规则
         } else {
             printf("  (skipped — yaml not found, build from can-dash root)\n");
         }
